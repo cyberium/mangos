@@ -857,7 +857,11 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket & recv_data)
         }
     }
 
-    GetPlayer()->TeleportTo(at->target_mapId, at->target_X, at->target_Y, at->target_Z, at->target_Orientation, TELE_TO_NOT_LEAVE_TRANSPORT);
+    Group* grp = _player->GetGroup();
+    if ((grp) && (grp->IsLFGGroup(_player->GetObjectGuid())))
+        sLFGMgr.LfgEvent(LFG_EVENT_AREA_TRIGGER,_player->GetObjectGuid(), at->target_mapId);
+    else
+        GetPlayer()->TeleportTo(at->target_mapId, at->target_X, at->target_Y, at->target_Z, at->target_Orientation, TELE_TO_NOT_LEAVE_TRANSPORT);
 }
 
 void WorldSession::HandleUpdateAccountData(WorldPacket &recv_data)

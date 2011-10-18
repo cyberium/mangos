@@ -27,7 +27,7 @@
 #include "LootMgr.h"
 #include "DBCEnums.h"
 #include "SharedDefines.h"
-
+#include "LFGMgr.h"
 #include <map>
 #include <vector>
 
@@ -99,7 +99,7 @@ enum GroupType                                              // group type flags?
     GROUPTYPE_BG     = 0x01,
     GROUPTYPE_RAID   = 0x02,
     GROUPTYPE_BGRAID = GROUPTYPE_BG | GROUPTYPE_RAID,       // mask
-    // 0x04?
+    GROUPTYPE_UNK1   = 0x04,                                // 0x04?
     GROUPTYPE_LFD    = 0x08,
     // 0x10, leave/change group?, I saw this flag when leaving group and after leaving BG while in group
 };
@@ -137,7 +137,6 @@ enum GroupUpdateFlags
     GROUP_UPDATE_PET                    = 0x0007FC00,       // all pet flags
     GROUP_UPDATE_FULL                   = 0x0007FFFF,       // all known flags
 };
-
 #define GROUP_UPDATE_FLAGS_COUNT          20
                                                                 // 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16,17,18,19
 static const uint8 GroupUpdateLength[GROUP_UPDATE_FLAGS_COUNT] = { 0, 2, 2, 2, 1, 2, 2, 2, 2, 4, 8, 8, 1, 2, 2, 2, 1, 2, 2, 8};
@@ -184,6 +183,26 @@ struct InstanceGroupBind
     InstanceGroupBind() : state(NULL), perm(false) {}
 };
 
+enum e_LfgGroupStatus
+{
+    LFG_STATUS_SAVED     = 0,
+    LFG_STATUS_NOT_SAVED = 1,
+    LFG_STATUS_COMPLETE  = 2,
+};
+
+struct s_LfgGroupData
+{
+    WorldLocation           LfgDungeonLocation;        // Used to avoid check all the time we need the info
+    const LFGDungeonEntry*  LfgDungeonEntry;           // Dungeon assigned to this group (if it's LFG group)
+    e_LfgGroupStatus        LfgStatus;                 // Status but not realy used
+    uint32                  LfgKicksCount;             // Kicks Done
+    time_t                  LfgLastKickDone;           // Last Kicks
+    bool                    CanHaveLuckOfTheDraw;      // If at least one member is pickup.
+    s_LfgGroupData() : LfgDungeonEntry(NULL), LfgStatus(LFG_STATUS_NOT_SAVED), LfgKicksCount(0), CanHaveLuckOfTheDraw(false)
+    {
+    }
+};
+
 /** request member stats checken **/
 /** todo: uninvite people that not accepted invite **/
 class MANGOS_DLL_SPEC Group
@@ -191,10 +210,17 @@ class MANGOS_DLL_SPEC Group
     public:
         struct MemberSlot
         {
-            ObjectGuid  guid;
-            std::string name;
-            uint8       group;
-            bool        assistant;
+            ObjectGuid      guid;
+            std::string     name;
+            uint8           group;
+            bool            assistant;
+            uint8           roles;
+            WorldLocation   originalLocation;
+
+            MemberSlot()
+            {
+                roles = 0;
+            }
         };
         typedef std::list<MemberSlot> MemberSlotList;
         typedef MemberSlotList::const_iterator member_citerator;
@@ -211,14 +237,14 @@ class MANGOS_DLL_SPEC Group
         ~Group();
 
         // group manipulation methods
-        bool   Create(ObjectGuid guid, const char * name);
+        bool   Create(ObjectGuid guid, const char * name, uint32 roles=0, const LFGDungeonEntry* dungeonEntry=NULL);
         bool   LoadGroupFromDB(Field *fields);
-        bool   LoadMemberFromDB(uint32 guidLow, uint8 subgroup, bool assistant);
+        bool   LoadMemberFromDB(uint32 guidLow, uint8 subgroup, bool assistant, uint32 roles, WorldLocation& oriLocation);
         bool   AddInvite(Player *player);
         uint32 RemoveInvite(Player *player);
         void   RemoveAllInvites();
         bool   AddLeaderInvite(Player *player);
-        bool   AddMember(ObjectGuid guid, const char* name);
+        bool   AddMember(ObjectGuid guid, const char* name, uint32 roles=0);
         uint32 RemoveMember(ObjectGuid guid, uint8 method); // method: 0=just remove, 1=kick
         void   ChangeLeader(ObjectGuid guid);
         void   SetLootMethod(LootMethod method) { m_lootMethod = method; }
@@ -226,6 +252,21 @@ class MANGOS_DLL_SPEC Group
         void   UpdateLooterGuid( Creature* creature, bool ifneed = false );
         void   SetLootThreshold(ItemQualities threshold) { m_lootThreshold = threshold; }
         void   Disband(bool hideDestroy=false);
+
+        // LFG method
+        void   ConvertToLfg();
+        bool   IsLFGGroup(ObjectGuid guid = ObjectGuid());
+        bool   SetLFGDungeonEntry(const LFGDungeonEntry* dungeonEntry);
+        WorldLocation const* GetLfgDestination();
+        WorldLocation const* GetLfgOriginalPos(ObjectGuid guid);
+        void   SetLfgRoles(ObjectGuid guid, uint8 roles);
+        uint8  GetLfgRoles(ObjectGuid guid);
+        bool   CanDoLfgKick();
+        void   IncLfgKickCount();
+        bool   IsRollLootActive() const;
+        uint32 GetLfgKickCoolDown();
+        void   SetLuckOfTheDraw();
+        bool   CanHaveLuckOfTheDraw();
 
         // properties accessories
         uint32 GetId() const { return m_Id; }
@@ -365,7 +406,8 @@ class MANGOS_DLL_SPEC Group
 
     protected:
         bool _addMember(ObjectGuid guid, const char* name, bool isAssistant=false);
-        bool _addMember(ObjectGuid guid, const char* name, bool isAssistant, uint8 group);
+        bool _addMember(ObjectGuid guid, const char* name, uint32 roles);
+        bool _addMember(ObjectGuid guid, const char* name, bool isAssistant, uint8 group, uint32 roles=0);
         bool _removeMember(ObjectGuid guid);                // returns true if leader has changed
         void _setLeader(ObjectGuid guid);
 
@@ -456,5 +498,6 @@ class MANGOS_DLL_SPEC Group
         Rolls               RollId;
         BoundInstancesMap   m_boundInstances[MAX_DIFFICULTY];
         uint8*              m_subGroupsCounts;
+        s_LfgGroupData      m_LfgGroupData;
 };
 #endif

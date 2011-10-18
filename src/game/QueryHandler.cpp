@@ -130,7 +130,7 @@ void WorldSession::HandleNameQueryOpcode( WorldPacket & recv_data )
 
     recv_data >> guid;
 
-    Player *pChar = sObjectMgr.GetPlayer(guid);
+    Player * pChar = HashMapHolder<Player>::Find(guid);
 
     if (pChar)
         SendNameQueryOpcode(pChar);

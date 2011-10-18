@@ -1296,6 +1296,9 @@ class MANGOS_DLL_SPEC Player : public Unit
         void LoadCorpse();
         void LoadPet();
 
+        // For LFG
+        float GetAverageItemLevel();
+
         uint32 m_stableSlots;
 
         /*********************************************************/

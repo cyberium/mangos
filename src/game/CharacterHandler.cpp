@@ -807,6 +807,7 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder *holder)
     pCurrChar->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_ON_LOGIN, 1);
 
     delete holder;
+    sLFGMgr.LfgEvent(LFG_EVENT_PLAYER_LOG_ON, playerGuid);
 }
 
 void WorldSession::HandleSetFactionAtWarOpcode( WorldPacket & recv_data )

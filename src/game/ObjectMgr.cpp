@@ -3449,8 +3449,8 @@ void ObjectMgr::LoadGroups()
 {
     // -- loading groups --
     uint32 count = 0;
-    //                                                    0         1              2           3           4              5      6      7      8      9      10     11     12     13         14          15              16          17
-    QueryResult *result = CharacterDatabase.Query("SELECT mainTank, mainAssistant, lootMethod, looterGuid, lootThreshold, icon1, icon2, icon3, icon4, icon5, icon6, icon7, icon8, groupType, difficulty, raiddifficulty, leaderGuid, groupId FROM groups");
+    //                                                    0         1              2           3           4              5      6      7      8      9      10     11     12     13         14          15              16          17       18
+    QueryResult *result = CharacterDatabase.Query("SELECT mainTank, mainAssistant, lootMethod, looterGuid, lootThreshold, icon1, icon2, icon3, icon4, icon5, icon6, icon7, icon8, groupType, difficulty, raiddifficulty, leaderGuid, groupId, dungeonId FROM groups");
 
     if (!result)
     {
@@ -3487,8 +3487,8 @@ void ObjectMgr::LoadGroups()
 
     // -- loading members --
     count = 0;
-    //                                       0           1          2         3
-    result = CharacterDatabase.Query("SELECT memberGuid, assistant, subgroup, groupId FROM group_member ORDER BY groupId");
+    //                                       0           1          2         3        4      5     6     7     8      9
+    result = CharacterDatabase.Query("SELECT memberGuid, assistant, subgroup, groupId, roles, orix, oriy, oriz, mapid, orient FROM group_member ORDER BY groupId");
     if (!result)
     {
         BarGoLink bar2(1);
@@ -3510,6 +3510,13 @@ void ObjectMgr::LoadGroups()
             bool   assistent     = fields[1].GetBool();
             uint8  subgroup      = fields[2].GetUInt8();
             uint32 groupId       = fields[3].GetUInt32();
+            uint32 roles         = fields[4].GetUInt32();
+            WorldLocation oriLocation;
+            oriLocation.coord_x  = fields[5].GetFloat();
+            oriLocation.coord_y  = fields[6].GetFloat();
+            oriLocation.coord_z  = fields[7].GetFloat();
+            oriLocation.mapid    = fields[8].GetInt32();
+            oriLocation.orientation = fields[9].GetFloat();
             if (!group || group->GetId() != groupId)
             {
                 group = GetGroupById(groupId);
@@ -3522,7 +3529,7 @@ void ObjectMgr::LoadGroups()
                 }
             }
 
-            if (!group->LoadMemberFromDB(memberGuidlow, subgroup, assistent))
+            if (!group->LoadMemberFromDB(memberGuidlow, subgroup, assistent, roles, oriLocation))
             {
                 sLog.outErrorDb("Incorrect entry in group_member table : member %s cannot be added to group (Id: %u)!",
                     memberGuid.GetString().c_str(), groupId);

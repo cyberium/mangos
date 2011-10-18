@@ -63,6 +63,7 @@
 #include "Util.h"
 #include "AuctionHouseBot/AuctionHouseBot.h"
 #include "CharacterDatabaseCleaner.h"
+#include "LFGMgr.h"
 #include "CreatureLinkingMgr.h"
 
 INSTANTIATE_SINGLETON_1( World );
@@ -778,6 +779,8 @@ void World::LoadConfigSettings(bool reload)
 
     setConfig(CONFIG_BOOL_PET_UNSUMMON_AT_MOUNT,      "PetUnsummonAtMount", true);
 
+    setConfig(CONFIG_BOOL_DUNGEON_FINDER_ENABLE, "Dungeon.Finder.Enable",true);
+
     m_relocation_ai_notify_delay = sConfig.GetIntDefault("Visibility.AIRelocationNotifyDelay", 1000u);
     m_relocation_lower_limit_sq  = pow(sConfig.GetFloatDefault("Visibility.RelocationLowerLimit",10), 2);
 
@@ -1290,6 +1293,9 @@ void World::SetInitialWorldSettings()
 
     sLog.outString( "Loading CreatureEventAI Scripts...");
     sEventAIMgr.LoadCreatureEventAI_Scripts();
+
+    sLog.outString( "Initialize Dungeon Finder...");
+    sLFGMgr.Initialize();
 
     sLog.outString("Initializing Scripts...");
     switch(sScriptMgr.LoadScriptLibrary(MANGOS_SCRIPT_NAME))

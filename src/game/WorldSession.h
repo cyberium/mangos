@@ -33,6 +33,17 @@ struct ItemPrototype;
 struct AuctionEntry;
 struct AuctionHouseEntry;
 struct DeclinedName;
+// ==================== for LFG ===================
+struct s_LfgProposal;
+struct s_LfgRolesCheck;
+struct s_LfgKickInfo;
+struct s_LfgLockStatus;
+
+typedef std::list < s_LfgLockStatus* > tLfgLockStatusList;
+typedef std::map  < uint32, tLfgLockStatusList* > tLfgLockStatusMap;
+typedef std::set  < uint32 > tLfgDungeonSet;
+typedef std::shared_ptr < tLfgDungeonSet > pLfgDungeonSet;
+// =================================================
 
 class ObjectGuid;
 class Creature;
@@ -153,23 +164,6 @@ enum LfgJoinResult
     ERR_LFG_ROLE_CHECK_FAILED2                  = 0x12,
 };
 
-enum LfgUpdateType
-{
-    LFG_UPDATE_JOIN     = 5,
-    LFG_UPDATE_LEAVE    = 7,
-};
-
-enum LfgType
-{
-    LFG_TYPE_NONE                 = 0,
-    LFG_TYPE_DUNGEON              = 1,
-    LFG_TYPE_RAID                 = 2,
-    LFG_TYPE_QUEST                = 3,
-    LFG_TYPE_ZONE                 = 4,
-    LFG_TYPE_HEROIC_DUNGEON       = 5,
-    LFG_TYPE_RANDOM_DUNGEON       = 6
-};
-
 enum ChatRestrictionType
 {
     ERR_CHAT_RESTRICTED = 0,
@@ -244,10 +238,7 @@ class MANGOS_DLL_SPEC WorldSession
         void SendNotification(const char *format,...) ATTR_PRINTF(2,3);
         void SendNotification(int32 string_id,...);
         void SendPetNameInvalid(uint32 error, const std::string& name, DeclinedName *declinedName);
-        void SendLfgSearchResults(LfgType type, uint32 entry);
-        void SendLfgJoinResult(LfgJoinResult result);
-        void SendLfgUpdate(bool isGroup, LfgUpdateType updateType, uint32 id);
-        void SendPartyResult(PartyOperation operation, const std::string& member, PartyResult res);
+        void SendPartyResult(PartyOperation operation, const std::string& member, PartyResult res, uint32 sec=0);
         void SendAreaTriggerMessage(const char* Text, ...) ATTR_PRINTF(2,3);
         void SendSetPhaseShift(uint32 phaseShift);
         void SendQueryTimeResponse();
@@ -770,11 +761,7 @@ class MANGOS_DLL_SPEC WorldSession
         void HandleSetDungeonDifficultyOpcode(WorldPacket& recv_data);
         void HandleSetRaidDifficultyOpcode(WorldPacket& recv_data);
         void HandleMoveSetCanFlyAckOpcode(WorldPacket& recv_data);
-        void HandleLfgJoinOpcode(WorldPacket& recv_data);
-        void HandleLfgLeaveOpcode(WorldPacket& recv_data);
-        void HandleSearchLfgJoinOpcode(WorldPacket& recv_data);
-        void HandleSearchLfgLeaveOpcode(WorldPacket& recv_data);
-        void HandleSetLfgCommentOpcode(WorldPacket& recv_data);
+
         void HandleSetTitleOpcode(WorldPacket& recv_data);
         void HandleRealmSplitOpcode(WorldPacket& recv_data);
         void HandleTimeSyncResp(WorldPacket& recv_data);
@@ -857,6 +844,34 @@ class MANGOS_DLL_SPEC WorldSession
         void HandleReadyForAccountDataTimesOpcode(WorldPacket& recv_data);
         void HandleQueryQuestsCompletedOpcode(WorldPacket& recv_data);
         void HandleQuestPOIQueryOpcode(WorldPacket& recv_data);
+
+        // Added For LFG
+        void HandleLfgJoinOpcode(WorldPacket& recv_data);
+        void HandleLfgLeaveOpcode(WorldPacket& recv_data);
+        void HandleLfgPlayerLockInfoRequestOpcode(WorldPacket &/*recv_data*/);
+        void HandleLfgPartyLockInfoRequestOpcode(WorldPacket &/*recv_data*/);
+        void SendLfgJoinResult(uint8 checkResult, uint8 checkValue  = 0 , tLfgLockStatusMap* playersLockMap  = NULL);
+        void SendLfgUpdatePlayer(uint8 updateType);
+        void SendLfgUpdateParty(uint8 updateType, pLfgDungeonSet dungeonSet = NULL);
+        void SendUpdateProposal(s_LfgProposal const* prop);
+        void HandleLfgProposalResultOpcode(WorldPacket &recv_data);
+        void SendLfgTeleportError(uint8 err);
+        void HandleLfgTeleportOpcode(WorldPacket &recv_data);
+        void HandleLfgSetRolesOpcode(WorldPacket &recv_data);
+        void SendLfgRoleChosen(ObjectGuid guid, uint8 roles);
+        void SendLfgRoleCheckUpdate(s_LfgRolesCheck const* roleCheck);
+        void SendLfgKickStatus(s_LfgKickInfo* kickInfo);
+        void HandleLfgSetKickVoteOpcode(WorldPacket &recv_data);
+        void SendLfgDisabled();
+
+        void HandleSetLfgCommentOpcode(WorldPacket& recv_data);
+        void SendLfgQueueStatus(uint32 dungeon, int32 waitTime, int32 avgWaitTime, int32 waitTimeTanks, int32 waitTimeHealer, int32 waitTimeDps, uint32 queuedTime, uint8 tanks, uint8 healers, uint8 dps);
+
+
+
+
+
+
     private:
         // private trade methods
         void moveItems(Item* myItems[], Item* hisItems[]);

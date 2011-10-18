@@ -40,13 +40,13 @@
     -FIX sending PartyMemberStats
 */
 
-void WorldSession::SendPartyResult(PartyOperation operation, const std::string& member, PartyResult res)
+void WorldSession::SendPartyResult(PartyOperation operation, const std::string& member, PartyResult res, uint32 sec)
 {
     WorldPacket data(SMSG_PARTY_COMMAND_RESULT, (4+member.size()+1+4+4));
     data << uint32(operation);
     data << member;                                         // max len 48
     data << uint32(res);
-    data << uint32(0);                                      // LFD cooldown related (used with ERR_PARTY_LFG_BOOT_COOLDOWN_S and ERR_PARTY_LFG_BOOT_NOT_ELIGIBLE_S)
+    data << sec;                                            // LFD cooldown related (used with ERR_PARTY_LFG_BOOT_COOLDOWN_S and ERR_PARTY_LFG_BOOT_NOT_ELIGIBLE_S)
 
     SendPacket( &data );
 }
@@ -242,8 +242,9 @@ void WorldSession::HandleGroupDeclineOpcode( WorldPacket & /*recv_data*/ )
 void WorldSession::HandleGroupUninviteGuidOpcode(WorldPacket & recv_data)
 {
     ObjectGuid guid;
+    std::string reason;
     recv_data >> guid;
-    recv_data.read_skip<std::string>();                     // reason
+    recv_data >> reason;                     // reason
 
     // can't uninvite yourself
     if (guid == GetPlayer()->GetObjectGuid())
@@ -252,16 +253,35 @@ void WorldSession::HandleGroupUninviteGuidOpcode(WorldPacket & recv_data)
         return;
     }
 
-    PartyResult res = GetPlayer()->CanUninviteFromGroup();
-    if (res != ERR_PARTY_RESULT_OK)
+    Group* grp = GetPlayer()->GetGroup();
+    if(!grp)
     {
-        SendPartyResult(PARTY_OP_LEAVE, "", res);
+        SendPartyResult(PARTY_OP_LEAVE, "", ERR_NOT_IN_GROUP);
         return;
     }
 
-    Group* grp = GetPlayer()->GetGroup();
-    if(!grp)
+    Player* player = sObjectMgr.GetPlayer(guid);
+
+    if (grp->IsLFGGroup())
+    {
+        s_LfgPartyResult res = sLFGMgr.CanUninviteFromGroup(grp, player);
+        if (res.result != ERR_PARTY_RESULT_OK)
+        {
+            SendPartyResult(PARTY_OP_LEAVE, "", res.result, res.seconds);
+            return;
+        }
+        sLFGMgr.LfgEvent(LFG_EVENT_INIT_KICK_VOTE, _player->GetObjectGuid(), &guid, &reason);
         return;
+    }
+    else
+    {
+        PartyResult res = GetPlayer()->CanUninviteFromGroup();
+        if (res != ERR_PARTY_RESULT_OK)
+        {
+            SendPartyResult(PARTY_OP_LEAVE, "", res);
+            return;
+        }
+    }
 
     if (grp->IsMember(guid))
     {
@@ -294,16 +314,36 @@ void WorldSession::HandleGroupUninviteOpcode(WorldPacket & recv_data)
         return;
     }
 
-    PartyResult res = GetPlayer()->CanUninviteFromGroup();
-    if (res != ERR_PARTY_RESULT_OK)
+    Group* grp = GetPlayer()->GetGroup();
+    if(!grp)
     {
-        SendPartyResult(PARTY_OP_LEAVE, "", res);
+        SendPartyResult(PARTY_OP_LEAVE, "", ERR_NOT_IN_GROUP);
         return;
     }
 
-    Group* grp = GetPlayer()->GetGroup();
-    if (!grp)
+    ObjectGuid guid = grp->GetMemberGuid(membername);
+    Player* player = sObjectMgr.GetPlayer(guid);
+    if (grp->IsLFGGroup())
+    {
+        s_LfgPartyResult res = sLFGMgr.CanUninviteFromGroup(grp, player);
+        if (res.result != ERR_PARTY_RESULT_OK)
+        {
+            SendPartyResult(PARTY_OP_LEAVE, "", res.result, res.seconds);
+            return;
+        }
+        std::string reason = "";
+        sLFGMgr.LfgEvent(LFG_EVENT_INIT_KICK_VOTE, _player->GetObjectGuid(), &guid, &reason);
         return;
+    }
+    else
+    {
+        PartyResult res = GetPlayer()->CanUninviteFromGroup();
+        if (res != ERR_PARTY_RESULT_OK)
+        {
+            SendPartyResult(PARTY_OP_LEAVE, "", res);
+            return;
+        }
+    }
 
     if (ObjectGuid guid = grp->GetMemberGuid(membername))
     {

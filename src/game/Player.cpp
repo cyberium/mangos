@@ -22938,3 +22938,29 @@ void Player::SetRestType( RestType n_r_type, uint32 areaTriggerId /*= 0*/)
             SetFFAPvP(false);
     }
 }
+
+// Adapted from TC
+float Player::GetAverageItemLevel()
+{
+    float sum = 0;
+    uint32 count = 0;
+
+    for (int i = EQUIPMENT_SLOT_START; i < EQUIPMENT_SLOT_END; ++i)
+    {
+        // don't check tabard, ranged, offhand or chest
+        if (i == EQUIPMENT_SLOT_TABARD || i == EQUIPMENT_SLOT_RANGED || i == EQUIPMENT_SLOT_OFFHAND || i == EQUIPMENT_SLOT_CHEST)
+            continue;
+        uint32 temp = 0;
+
+        if (m_items[i] && m_items[i]->GetProto())
+            temp = m_items[i]->GetProto()->ItemLevel;
+
+        if (temp)
+        {
+            sum += temp;
+            count++;
+        }
+    }
+
+    return ((float)sum) / count;
+}
