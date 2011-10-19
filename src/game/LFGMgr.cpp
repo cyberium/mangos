@@ -144,6 +144,7 @@ void* LFGMgr::UpdateThread(void* arg)
             if (pThis->m_ProposalMap.size()>0)
                 pThis->DoDeleteExpiredProposal();
 
+
             // Verify roles check timers
             if (pThis->m_RolesCheckMap.size()>0)
                 pThis->DoDeleteExpiredRolesCheck();
@@ -162,8 +163,8 @@ void* LFGMgr::UpdateThread(void* arg)
         // send to clients actual status of the queue
         pThis->DoUpdateQueuedStatus(currTeam);
 
-        //sLog.outDebug("LFG::Update > %s Player queue size = %u", (currTeam == HORDE)?"Horde":"Alliance", pThis->GetLFGSize(currTeam));
-        //sLog.outDebug("ThreadCount> %u",ACE_Thread_Manager::instance()->count_threads());
+        sLog.outDebug("LFG::UpdateThread > %s Player queue size = %u", (currTeam == HORDE)?"Horde":"Alliance", pThis->GetLFGSize(currTeam));
+        sLog.outDebug("LFG::UpdateThread > In use Proposal:%u, CheckRole:%u, VoteKiks:%u", pThis->m_ProposalMap.size(), pThis->m_RolesCheckMap.size(), pThis->m_KicksMap.size());
         if (currTeam == HORDE)
             currTeam = ALLIANCE;
         else
@@ -491,7 +492,7 @@ void LFGMgr::DoProcessActionMsg(uint32 diff)
         }
         case LFG_ACTION_TELEPORT_PLAYER :
         {
-            if (actionMsg->ElapsedTime >= 2000)
+            if (actionMsg->ElapsedTime >= 0000)
             {
                     sLog.outDebug("LFGMgr::ProcessActionMsg > Enterring TELEPORT message processing for [%u]", actionMsg->Guid.GetCounter());
 
