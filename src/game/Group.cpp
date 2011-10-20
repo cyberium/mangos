@@ -632,7 +632,7 @@ bool Group::CanDoLfgKick()
 void Group::IncLfgKickCount()
 {
     ++m_LfgGroupData.LfgKicksCount;
-    m_LfgGroupData.LfgLastKickDone = time(NULL) + LFG_KICK_COOLDOWN_DELAY;
+    m_LfgGroupData.LfgLastKickDone = time(NULL) + LFG_DELAY_KICK_COOLDOWN;
 }
 
 bool Group::IsRollLootActive() const

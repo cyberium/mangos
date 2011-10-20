@@ -92,7 +92,7 @@ void ThreadSafeActionList::Remove(e_LfgActionType action, ObjectGuid guid)
 //===============================================================================================
 // Need LFGQMgr class.
 //===============================================================================================
-LFGMgr::LFGMgr() : m_LFGUpdateTimer (0), m_LFGUpdateInfo (0), m_ProposalId (0)//, m_AllianceUpdate (false), m_HordeUpdate (false)
+LFGMgr::LFGMgr() : m_ProposalId (0)
 {
 }
 
@@ -126,20 +126,23 @@ void* LFGMgr::UpdateThread(void* arg)
     ACE_Time_Value tv;
     tv.set_msec(100);
     // need to add conditional to close correctly this thread
+    uint32  Timer1 = 0;
+    uint32  Timer2 = 0;
     while (1)
     {
         // 100ms sleep.
         ACE_OS::sleep(tv);
         uint32 currTime = WorldTimer::getMSTime();
         uint32 diff = WorldTimer::getMSTimeDiff(WorldTimer::getMSTime(), prevTime);
-
+        prevTime=currTime;
         // most important part, ProcessActionMsg(diff) handle all operation about lfg queue
         pThis->DoProcessActionMsg(diff);
-
-        pThis->m_LFGUpdateInfo += diff;
-        if (pThis->m_LFGUpdateInfo > LFG_UPDATE_CLIENT_INFO_TIMER)
+        
+        Timer1 += diff;
+        Timer2 += diff;
+        if (Timer1 > LFG_TIMER_UPDATE_CLIENT_INFO)
         {
-            pThis->m_LFGUpdateInfo=0;
+            Timer1 = 0;
             // Verify proposal timers
             if (pThis->m_ProposalMap.size()>0)
                 pThis->DoDeleteExpiredProposal();
@@ -154,9 +157,9 @@ void* LFGMgr::UpdateThread(void* arg)
                 pThis->DoDeleteExpiredVoteKick();
         }
 
-        if (diff < LFG_UPDATE_QUEUE_TIMER)
+        if (Timer2 < LFG_TIMER_UPDATE_QUEUE)
             continue;
-        prevTime=currTime;
+        Timer2 = 0;
         // FindGroup will check if there is any possibility to create new group from actual queued members
         // it work one team at a time separed by LFG_UPDATE_QUEUE_TIMER (7 sec by default)
         //pThis->DoFindGroup(currTeam);
@@ -414,8 +417,9 @@ void LFGMgr::DoProcessActionMsg(uint32 diff)
 
         case LFG_ACTION_REMOVE_PLAYER_FROM_QUEUE_DELAYED :
         {
-            if (actionMsg->ElapsedTime > 15000)
+            if (actionMsg->ElapsedTime > LFG_TIMER_DELAYED_REMOVE_LOG_OFF)
             {
+                sLog.outDebug("Timelaps=%u", actionMsg->ElapsedTime);
                 DoRemovePlayerFromQueue(actionMsg->Guid);
                 deleteItr=true;
             }
@@ -581,7 +585,7 @@ void LFGMgr::DoSendProposal(pLfgNewGroup newGroupInfo)
     m_ProposalMap[newPropId].ID = newPropId; // to be sure this element is created
     m_ProposalMap[newPropId].NewGroupInfo=newGroupInfo;
     m_ProposalMap[newPropId].State = LFG_PROPOSAL_INITIATING;
-    m_ProposalMap[newPropId].ProposalExpire = time(NULL) + LFG_PROPOSAL_TIMELAPS;
+    m_ProposalMap[newPropId].ProposalExpire = time(NULL) + LFG_TIMELAPS_PROPOSAL;
 
     SetGuidStatus(&newGroupInfo->NewGroup,LFG_PLAYER_STATUS_IN_PROPOSAL, newPropId);
 
@@ -768,7 +772,7 @@ void LFGMgr::DoSendGroupRolesCheck(Player* plr, pLfgDungeonSet dungeonSet, uint3
     rolesCheck.GuidInfo = GetGuidInfos(guid);
     rolesCheck.dungeons = dungeonSet;
     rolesCheck.result = LFG_ROLECHECK_INITIALITING;
-    rolesCheck.expireTime = time(NULL) + LFG_ROLECHECK_TIMELAPS;
+    rolesCheck.expireTime = time(NULL) + LFG_TIMELAPS_ROLECHECK;
     rolesCheck.RolesInfo[guid.GetCounter()].Roles = Roles;
     m_RolesCheckMap[grp->GetId()] = rolesCheck;
     SetGuidStatus(guid, LFG_PLAYER_STATUS_IN_ROLECHECK, grp->GetId());
@@ -1007,7 +1011,7 @@ void LFGMgr::DoInitVoteKick(ObjectGuid const& senderGuid, ObjectGuid const& vict
         return;
 
     m_KicksMap[grp->GetId()].Accepted = 1;
-    m_KicksMap[grp->GetId()].ExpireTime = time(NULL) + LFG_KICK_VOTE_TIMELAPS;
+    m_KicksMap[grp->GetId()].ExpireTime = time(NULL) + LFG_TIMELAPS_KICK_VOTE;
     m_KicksMap[grp->GetId()].InProgress = true;
     m_KicksMap[grp->GetId()].Reason = reason;
     m_KicksMap[grp->GetId()].VictimGuid = victimGuid;
@@ -2191,7 +2195,7 @@ void LFGQMgr::ShowQueueInfo(Team team)
                 }
                 else
                 {
-                    sLog.outDebug("Guid[%u] is in queue with status[%u] and roles[%u], player %s logged", qitr->second.Guid.GetCounter(), qitr->second.Status, qitr->second.Roles, (!qitr->second.LoggedOff)?"is":"is not");
+                    sLog.outDebug("Guid[%u] is in queue with status[%u] and roles[%u], player %s logged", qitr->second.Guid.GetCounter(), qitr->second.Status, qitr->second.Roles, (qitr->second.LoggedOff)?"is":"is not");
                 }
                     
             }
@@ -2206,7 +2210,7 @@ void LFGQMgr::ShowQueueInfo(Team team)
                     }
                     else
                     {
-                        sLog.outDebug("Guid[%u] is in queue with status[%u] and roles[%u], player %s logged", qitr->second.Guid.GetCounter(), qitr->second.Status, qitr->second.Roles, (!qitr->second.LoggedOff)?"is":"is not");
+                        sLog.outDebug("Guid[%u] is in queue with status[%u] and roles[%u], player %s logged", qitr->second.Guid.GetCounter(), qitr->second.Status, qitr->second.Roles, (qitr->second.LoggedOff)?"is":"is not");
                     }
                 }
             }

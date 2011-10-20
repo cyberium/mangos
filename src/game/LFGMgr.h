@@ -12,13 +12,14 @@
 
 #include <memory>
 
-#define LFG_UPDATE_QUEUE_TIMER 7000
-#define LFG_UPDATE_CLIENT_INFO_TIMER 2000
-#define LFG_PROPOSAL_TIMELAPS 2*MINUTE
-#define LFG_KICK_VOTE_TIMELAPS 2*MINUTE
-#define LFG_UPDATE_ROLES_CHECK_TIMER 1000
-#define LFG_ROLECHECK_TIMELAPS 2*MINUTE
-#define LFG_KICK_COOLDOWN_DELAY 5*MINUTE
+#define LFG_TIMER_UPDATE_QUEUE 7*1000                       // Update client timer. (msec)
+#define LFG_TIMER_UPDATE_CLIENT_INFO 2*1000                 // Update proposal, kiks, rolescheck timer.(msec)
+#define LFG_TIMER_DELAYED_REMOVE_LOG_OFF 5*MINUTE*1000      // Delayed remove player from queue timer default 5 min.(msec)
+#define LFG_TIMELAPS_PROPOSAL 2*MINUTE
+#define LFG_TIMELAPS_KICK_VOTE 2*MINUTE
+#define LFG_TIMER_UPDATE_ROLES_CHECK 1000
+#define LFG_TIMELAPS_ROLECHECK 2*MINUTE
+#define LFG_DELAY_KICK_COOLDOWN 5*MINUTE
 #define LFG_MIN_TANK 1
 #define LFG_MIN_HEALER 1
 #define LFG_MIN_DPS 3
@@ -652,16 +653,11 @@ public:
 
 
 private:
-    uint32              m_LFGUpdateTimer;                       // Send status update timer
-    uint32              m_LFGUpdateInfo;                        // Verify if RolesCheck, Proposal, KickVote are expired timer
     tRolesCheckMap      m_RolesCheckMap;
     tLfgProposalMap     m_ProposalMap;
     uint32              m_ProposalId;                           // Used to generate different ID for proposalID
     tLfgKicksMap        m_KicksMap;
-    /*
-    bool                m_AllianceUpdate;
-    bool                m_HordeUpdate;
-    */
+
     ThreadSafeActionList  m_ActionMsgList;                      // Action need to be processed
 
 private:
@@ -688,11 +684,6 @@ private:
     uint32              GetNewProposalID();
 
     virtual void        GroupFound(pLfgNewGroup groupInfo);
-    /*
-    void                EnableQueueStatsUpdate(Team team);
-    void                EnableQueueStatsUpdate(Player* plr);
-    */
-
 };
 
 #define sLFGMgr MaNGOS::Singleton<LFGMgr>::Instance()
