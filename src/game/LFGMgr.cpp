@@ -2206,11 +2206,11 @@ void LFGQMgr::ShowQueueInfo(Team team)
                     Player * plr = sObjectMgr.GetPlayer(guidItr->second.Guid);
                     if (plr)
                     {
-                        sLog.outDebug("Player '%s'[%u] is in queue with status[%u] and roles[%u]", plr->GetName(), qitr->second.Guid.GetCounter(), qitr->second.Status, qitr->second.Roles);
+                        sLog.outDebug("Player '%s'[%u] is in queue with status[%u] and roles[%u]", plr->GetName(), guidItr->second.Guid.GetCounter(), qitr->second.Status, guidItr->second.Roles);
                     }
                     else
                     {
-                        sLog.outDebug("Guid[%u] is in queue with status[%u] and roles[%u], player %s logged", qitr->second.Guid.GetCounter(), qitr->second.Status, qitr->second.Roles, (qitr->second.LoggedOff)?"is":"is not");
+                        sLog.outDebug("Guid[%u] is in queue with status[%u] and roles[%u], player %s logged", guidItr->second.Guid.GetCounter(), qitr->second.Status, guidItr->second.Roles, (guidItr->second.LoggedOff)?"is":"is not");
                     }
                 }
             }
