@@ -1597,7 +1597,7 @@ e_LfgJoinResult LFGQMgr::AddPlayerToQueue(Player* plr, pLfgDungeonSet dungeonSet
     (*guidInfoQueue)[counter].Dungeon = dungeonSet;
     (*guidInfoQueue)[counter].JoinedTime = now;
     (*guidInfoQueue)[counter].Guid = guid;
-    (*guidInfoQueue)[counter].AverageStuffLvl = plr->GetAverageItemLevel();
+    (*guidInfoQueue)[counter].AverageStuffLvl = plr->GetEquipGearScore();
     (*guidInfoQueue)[counter].team = plr->GetTeam();
     if (grp)
     {
@@ -1612,7 +1612,7 @@ e_LfgJoinResult LFGQMgr::AddPlayerToQueue(Player* plr, pLfgDungeonSet dungeonSet
                 continue;
             ObjectGuid membGuid = membPlr->GetObjectGuid();
             (*guidInfoQueue)[counter].MemberInfo[membGuid.GetCounter()].Guid = membGuid;
-            (*guidInfoQueue)[counter].MemberInfo[membGuid.GetCounter()].AverageStuffLvl = membPlr->GetAverageItemLevel();
+            (*guidInfoQueue)[counter].MemberInfo[membGuid.GetCounter()].AverageStuffLvl = membPlr->GetEquipGearScore();
             m_GuidInfoMapIndex[membGuid.GetCounter()]=&(*guidInfoQueue)[counter]; // Helper map to get fast access to all info in any map
         }
     }
