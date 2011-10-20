@@ -581,13 +581,15 @@ public:
     void                SetOnLineStatus(ObjectGuid const& guid, bool status);
     void                SetProposal(ObjectGuid const& guid, bool answer);
     void                Initialize();
-    pLfgNewGroup        GetNewParty(Team team);
     void                UpdateDungeonsStatsMap(Team team);
     tGuidInfoQueueConstItr QueueBegin(Team team){ return m_AllGuidInfoQueue[team].begin();}
     tGuidInfoQueueConstItr QueueEnd(Team team){ return m_AllGuidInfoQueue[team].end();}
 
     pLfgDungeonSet GetDungeonsByGuid(ObjectGuid guid);
     pLfgDungeonStats GetDungeonStats(pLfgDungeonSet dungeonSet, Team team);
+
+
+    void                ShowQueueInfo(Team team);
     void SaveToDB();
     void LoadFromDB();
 
@@ -604,7 +606,6 @@ private:
     tGuidInfoSet*       CheckCompatibility(tGuidInfoSet const* dispoGuid, tGuidInfoSet const* groupedGuid = NULL);
     bool                GetGroup(tGuidInfoSet* dispoGuid, tGuidInfoSet& groupedSet, uint32 neededTank = LFG_MIN_TANK, uint32 neededHealer = LFG_MIN_HEALER, uint32 neededDps = LFG_MIN_DPS);
     bool                GetQueueIndex(ObjectGuid guid, Team& team, tGuidInfoQueueItr& itr);
-    bool                GetGroupNeed(s_GuidInfo* guidInfo, s_LfgGroupNeed& groupNeed);
     Team                GetTeam(ObjectGuid guid);
     void                EvalGroupStuff(pLfgNewGroup groupInfo);
     virtual void        GroupFound(pLfgNewGroup groupInfo) = 0;

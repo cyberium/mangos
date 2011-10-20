@@ -165,6 +165,7 @@ void* LFGMgr::UpdateThread(void* arg)
 
         sLog.outDebug("LFG::UpdateThread > %s Player queue size = %u", (currTeam == HORDE)?"Horde":"Alliance", pThis->GetLFGSize(currTeam));
         sLog.outDebug("LFG::UpdateThread > In use Proposal:%u, CheckRole:%u, VoteKiks:%u", pThis->m_ProposalMap.size(), pThis->m_RolesCheckMap.size(), pThis->m_KicksMap.size());
+        pThis->ShowQueueInfo(currTeam);
         if (currTeam == HORDE)
             currTeam = ALLIANCE;
         else
@@ -2167,215 +2168,50 @@ uint32 LFGQMgr::GetSetSize(tGuidInfoSet const* guidSet)
     return size;
 }
 
-pLfgNewGroup LFGQMgr::GetNewParty(Team team)
-{
-    if (m_AllDungeonsStatsSet[team].empty())
-        return NULL;
-    sLog.outDebug("GetNewParty> dungeonsStats size = %u", m_AllDungeonsStatsSet[team].size());
-
-    pLfgNewGroup newGroupInfo(new s_LfgNewGroup);
-
-    for (tLfgDungeonsStatsSet::iterator dungeonQueueItr = m_AllDungeonsStatsSet[team].begin(); dungeonQueueItr != m_AllDungeonsStatsSet[team].end(); ++dungeonQueueItr)
-    {
-        uint32 dungeonId = (*dungeonQueueItr)->first;
-        tGuidInfoSet const* currentGuidInfoSet = &((*dungeonQueueItr)->second.GuidInfoSet);
-        uint32 setSize = GetSetSize(currentGuidInfoSet);
-        sLog.outDebug("GetNewParty> %u Player are queued on dungeon(%u)", setSize, dungeonId);
-        if ( setSize < LFG_GROUP_SIZE)
-            continue; // Not enought queued players for this dungeons.
-
-        sLog.outDebug("GetNewParty> %u Queued player for dungeon Id = %u", currentGuidInfoSet->size(), dungeonId);
-        if (GetGroup(&(m_AllDungeonsStatsMap[team].find(dungeonId)->second.GuidInfoSet), newGroupInfo->NewGroup))
-        {
-            LFGDungeonEntry const* dungeonEntry = GetRandomDungeon(dungeonId);
-            if (!dungeonEntry)
-            {
-                sLog.outError("GetNewParty> Error didn't get DungeonEntry for ID=%u", dungeonId);
-                continue;
-            }
-            for (tGuidInfoSet::iterator itr = newGroupInfo->NewGroup.begin(); itr != newGroupInfo->NewGroup.end(); ++itr)
-                sLog.outDebug("GetNewParty> Guid in list %u", (*itr)->Guid.GetCounter());
-            newGroupInfo->DungeonEntry = dungeonEntry;
-            newGroupInfo->DungeonId = dungeonId;
-           // SetNewGroupLeader(newGroupSet, newGroupInfo->NewGroup);
-            return newGroupInfo;
-        }
-        else
-        {
-            // clear new party list (possibly filed by getgroup)
-            newGroupInfo->NewGroup.clear();
-            sLog.outDebug("GetNewParty> newParty is empty try next");
-        }
-    }
-    return NULL;
-}
-
-bool LFGQMgr::GetGroupNeed(s_GuidInfo* guidInfo, s_LfgGroupNeed& groupNeed)
-{
-    sLog.outDebug("GetGroupNeed> Etape 0 groupInfo->GuidInfoMap size= %u", guidInfo->MemberInfo.size());
-    Group* grp = sObjectMgr.GetGroupById(guidInfo->GroupId);
-    if (!grp)
-        return false;
-
-    if ((groupNeed.Initialised) && (!groupNeed.mixRolesMap.size()))
-        return false;
-    sLog.outDebug("GetGroupNeed> Etape 1");
-    if (groupNeed.Initialised)
-    {
-        tLfgRolesMap::iterator mixedItr = groupNeed.mixRolesMap.begin();
-        sLog.outDebug("GetGroupNeed> Etape Initialised");
-        while (mixedItr != groupNeed.mixRolesMap.end())
-        {
-            tMemberInfoMap::iterator guidInfoItr = guidInfo->MemberInfo.find(mixedItr->second.guid.GetCounter());
-            if (guidInfoItr == guidInfo->MemberInfo.end())
-                return false;
-            uint32 roles = guidInfoItr->second.Roles;
-            if ((roles & LFG_TANK) && (mixedItr->second.Roles == LFG_NO_ROLE))
-            {
-                mixedItr->second.Roles = LFG_TANK;
-                if (groupNeed.Tanks > 0)
-                {
-                    sLog.outDebug("GetGroupNeed> Assign Tank to [%u]", mixedItr->second.guid.GetCounter());
-                    guidInfoItr->second.ChosenRole = LFG_TANK;
-                    --groupNeed.Tanks;
-                    return true;
-                }
-            }
-            if (roles & LFG_HEALER)
-            {
-                if (mixedItr->second.Roles == LFG_TANK)
-                    ++groupNeed.Tanks;
-                mixedItr->second.Roles = LFG_HEALER;
-                if (groupNeed.Healers > 0)
-                {
-                    sLog.outDebug("GetGroupNeed> Assign Healer to [%u]", mixedItr->second.guid.GetCounter());
-                    guidInfoItr->second.ChosenRole = LFG_HEALER;
-                    --groupNeed.Healers;
-                    return true;
-                }
-            }
-            if (roles & LFG_DPS)
-            {
-                if (mixedItr->second.Roles == LFG_TANK)
-                    ++groupNeed.Tanks;
-                else if (mixedItr->second.Roles == LFG_HEALER)
-                        ++groupNeed.Healers;
-
-                mixedItr->second.Roles = LFG_DPS;
-                if (groupNeed.Dps > 0)
-                {
-                    sLog.outDebug("GetGroupNeed> Assign Dps to [%u]", mixedItr->second.guid.GetCounter());
-                    guidInfoItr->second.ChosenRole = LFG_DPS;
-                    --groupNeed.Dps;
-                    return true;
-                }
-                return false;
-            }
-            ++mixedItr;
-        }
-        return false;
-    }
-
-    //Player* plr;
-    for (tMemberInfoMap::iterator memberItr = guidInfo->MemberInfo.begin(); memberItr != guidInfo->MemberInfo.end(); ++memberItr)
-    {
-        sLog.outDebug("GetGroupNeed> Etape 2");
-        ObjectGuid guid = memberItr->second.Guid;
-        uint32 roles = memberItr->second.Roles;
-
-        if ((roles==LFG_TANK) || (roles == (LFG_TANK | LFG_LEADER)))
-        {
-            if (groupNeed.Tanks > 0)
-            {
-                sLog.outDebug("GetGroupNeed> Assign Tank to [%u]", guid.GetCounter());
-                memberItr->second.ChosenRole = LFG_TANK;
-                --groupNeed.Tanks;
-            }
-            else
-            {
-                sLog.outDebug("GetGroupNeed> Cannot assign Tank to [%u]", guid.GetCounter());
-                return false;
-            }
-        }
-        else if ((roles==LFG_HEALER) || (roles == (LFG_HEALER | LFG_LEADER)))
-        {
-            if (groupNeed.Healers > 0)
-            {
-                sLog.outDebug("GetGroupNeed> Assign Healer to [%u]", guid.GetCounter());
-                memberItr->second.ChosenRole = LFG_HEALER;
-                --groupNeed.Healers;
-            }
-            else
-            {
-                sLog.outDebug("GetGroupNeed> Cannot assign Healer to [%u]", guid.GetCounter());
-                return false;
-            }
-        }
-        else if ((roles==LFG_DPS) || (roles == (LFG_DPS | LFG_LEADER)))
-        {
-            if (groupNeed.Dps > 0)
-            {
-                sLog.outDebug("GetGroupNeed> Assign Dps to [%u]", guid.GetCounter());
-                memberItr->second.ChosenRole = LFG_DPS;
-                --groupNeed.Dps;
-            }
-            else
-            {
-                sLog.outDebug("GetGroupNeed> Cannot assign Dps to [%u]", guid.GetCounter());
-                return false;
-            }
-        }
-        else
-        {
-            sLog.outDebug("GetGroupNeed> Etape MixedRoles");
-            groupNeed.mixRolesMap[guid.GetCounter()].guid = guid;
-            if (roles & LFG_TANK)
-            {
-                groupNeed.mixRolesMap[guid.GetCounter()].Roles = LFG_TANK;
-                if (groupNeed.Tanks > 0)
-                {
-                    sLog.outDebug("GetGroupNeed> Assign Tank to [%u]", guid.GetCounter());
-                    memberItr->second.ChosenRole = LFG_TANK;
-                    --groupNeed.Tanks;
-                    continue;
-                }
-            }
-            if (roles & LFG_HEALER)
-            {
-                groupNeed.mixRolesMap[guid.GetCounter()].Roles = LFG_HEALER;
-                if (groupNeed.Healers > 0)
-                {
-                    sLog.outDebug("GetGroupNeed> Assign Healer to [%u]", guid.GetCounter());
-                    memberItr->second.ChosenRole = LFG_HEALER;
-                    --groupNeed.Healers;
-                    continue;
-                }
-            }
-            if (roles & LFG_DPS)
-            {
-                groupNeed.mixRolesMap[guid.GetCounter()].Roles = LFG_DPS;
-                if (groupNeed.Dps > 0)
-                {
-                    sLog.outDebug("GetGroupNeed> Assign Dps to [%u]", guid.GetCounter());
-                    memberItr->second.ChosenRole = LFG_DPS;
-                    --groupNeed.Dps;
-                    continue;
-                }
-                sLog.outDebug("GetGroupNeed> Cannot assign any role to [%u]", guid.GetCounter());
-                return false;
-            }
-        }
-    }
-    groupNeed.Initialised = true;
-    return true;
-}
-
 void LFGQMgr::SaveToDB()
 {
 }
 
 void LFGQMgr::LoadFromDB()
 {
+}
+
+void LFGQMgr::ShowQueueInfo(Team team)
+{
+    for (tGuidInfoQueueConstItr qitr=QueueBegin(team); qitr!=QueueEnd(team); ++qitr)
+    {
+        //if ((!qitr->second.LoggedOff) && (qitr->second.Status == LFG_PLAYER_STATUS_IN_QUEUE))
+        {
+            if (!qitr->second.PreGrouped)
+            {
+                Player * plr = sObjectMgr.GetPlayer(qitr->second.Guid);
+                if (plr)
+                {
+                    sLog.outDebug("Player '%s'[%u] is in queue with status[%u] and roles[%u]", plr->GetName(), qitr->second.Guid.GetCounter(), qitr->second.Status, qitr->second.Roles);
+                }
+                else
+                {
+                    sLog.outDebug("Guid[%u] is in queue with status[%u] and roles[%u], player %s logged", qitr->second.Guid.GetCounter(), qitr->second.Status, qitr->second.Roles, (!qitr->second.LoggedOff)?"is":"is not");
+                }
+                    
+            }
+            else
+            {
+                for (tMemberInfoMap::const_iterator guidItr = qitr->second.MemberInfo.begin(); guidItr != qitr->second.MemberInfo.end(); ++guidItr)
+                {
+                    Player * plr = sObjectMgr.GetPlayer(guidItr->second.Guid);
+                    if (plr)
+                    {
+                        sLog.outDebug("Player '%s'[%u] is in queue with status[%u] and roles[%u]", plr->GetName(), qitr->second.Guid.GetCounter(), qitr->second.Status, qitr->second.Roles);
+                    }
+                    else
+                    {
+                        sLog.outDebug("Guid[%u] is in queue with status[%u] and roles[%u], player %s logged", qitr->second.Guid.GetCounter(), qitr->second.Status, qitr->second.Roles, (!qitr->second.LoggedOff)?"is":"is not");
+                    }
+                }
+            }
+        }
+    }
 }
 
 //===============================================================================================
