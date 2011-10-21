@@ -699,7 +699,67 @@ void LFGMgr::DoCancelProposal(uint32 proposalId, ObjectGuid senderGuid, e_LfgUpd
     {
         s_LfgProposal* prop = &propitr->second;
         ObjectGuid* senderLeader = NULL;
-        s_GuidInfo const* guidInfos = GetGuidInfos(senderGuid);
+        s_GuidInfo const* guidInfos = NULL;
+        if (senderGuid.IsEmpty())
+        {
+            // This part will remove from queue all player who did not respond to proposal
+            for (tGuidInfoSet::const_iterator itr = prop->NewGroupInfo->NewGroup.begin(); itr != prop->NewGroupInfo->NewGroup.end(); ++itr)
+            {
+                bool removeIt = false;
+
+                if (!(*itr)->PreGrouped)
+                {
+                    Player* grpMember = sObjectMgr.GetPlayer((*itr)->Guid);
+                    if (grpMember)
+                    {
+                        grpMember->GetSession()->SendUpdateProposal(prop);
+                        tLfgResultMap::const_iterator answer = (prop->GuidResultMap.find((*itr)->Guid.GetCounter()));
+                        if ((answer == prop->GuidResultMap.end()) || (!answer->second))
+                        {
+                            SendLFGUpdate(grpMember, LFG_UPDATETYPE_REMOVED_FROM_QUEUE);
+                            removeIt = true;
+                        }
+                        else
+                        {
+                            SendLFGUpdate(grpMember, LFG_UPDATETYPE_ADDED_TO_QUEUE);
+                        }
+                    }
+                }
+                else
+                {
+                    for (tMemberInfoMap::const_iterator guidItr = (*itr)->MemberInfo.begin(); guidItr != (*itr)->MemberInfo.end(); ++guidItr)
+                    {
+                        tLfgResultMap::const_iterator answer = (prop->GuidResultMap.find(guidItr->second.Guid.GetCounter()));
+                        if ((answer == prop->GuidResultMap.end()) || (!answer->second))
+                        {
+                            removeIt = true;
+                            break;
+                        }
+                    }
+
+                    for (tMemberInfoMap::const_iterator guidItr = (*itr)->MemberInfo.begin(); guidItr != (*itr)->MemberInfo.end(); ++guidItr)
+                    {
+                        Player* grpMember = sObjectMgr.GetPlayer(guidItr->second.Guid);
+                        if (grpMember)
+                        {
+                            grpMember->GetSession()->SendUpdateProposal(prop);
+                            if (removeIt)
+                                SendLFGUpdate(grpMember, LFG_UPDATETYPE_REMOVED_FROM_QUEUE);
+                            else
+                                SendLFGUpdate(grpMember, LFG_UPDATETYPE_ADDED_TO_QUEUE);
+                        }
+                    }
+                }
+                if (removeIt)
+                    RemovePlayerFromQueue((*itr)->Guid);
+                else
+                    SetGuidStatus((*itr)->Guid, LFG_PLAYER_STATUS_IN_QUEUE, 0);
+            }
+            return;
+        }
+        else
+            guidInfos = GetGuidInfos(senderGuid);
+
         if (!guidInfos)
         {
             sLog.outError("DoCancelProposal> Error cannot retrieve queue guid info of [%u]", senderGuid.GetCounter());
