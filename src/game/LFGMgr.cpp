@@ -386,10 +386,11 @@ void LFGMgr::DoProcessActionMsg(uint32 diff)
                 {
                     actionMsg->Plr->GetSession()->SendLfgJoinResult(result, 0);
                     SendLFGUpdate(actionMsg->Plr, LFG_UPDATETYPE_JOIN_PROPOSAL);
+                    SetGuidStatus(actionMsg->Plr->GetObjectGuid(), LFG_PLAYER_STATUS_IN_QUEUE);
                 }
                 else
                     DoSendGroupRolesCheck(actionMsg->Plr, actionMsg->DungeonSet, actionMsg->Uint32Value);
-                SetGuidStatus(actionMsg->Plr->GetObjectGuid(), LFG_PLAYER_STATUS_IN_QUEUE);
+                
             }
             deleteItr=true;
             break;
@@ -871,7 +872,8 @@ void LFGMgr::DoSetRolesCheckAnswer(ObjectGuid guid, uint32 roles)
             {
                 plr->GetSession()->SendLfgRoleCheckUpdate(rolesCheck);
                 plr->GetSession()->SendLfgUpdateParty(LFG_UPDATETYPE_ADDED_TO_QUEUE);
-
+                sLog.outDebug("SetStatus called to add group of [%u] in the queue.", guidInfo->Guid.GetCounter());
+                SetGuidStatus(guidInfo->Guid, LFG_PLAYER_STATUS_IN_QUEUE);      // Add group in queue...
             }
             else
             {
@@ -1348,7 +1350,8 @@ void LFGMgr::DoTeleportPlayer(Player* plr, WorldLocation const* location)
 
 void LFGMgr::GroupFound(pLfgNewGroup groupInfo)
 {
-    DoSendProposal(groupInfo);
+    s_LfgActionMsg* actionMsg = new s_LfgActionMsg(LFG_ACTION_SEND_PROPOSAL, groupInfo);
+    m_ActionMsgList.Add(actionMsg);
 }
 
 //=============================================================================
@@ -1688,7 +1691,7 @@ void LFGQMgr::SetGroupRoles(s_LfgRolesCheck& rolesCheck)
             roles = rolesItr->second.Roles;
         guidItr->second.Roles = roles;
     }
-    SetGuidStatus(guidInfo, LFG_PLAYER_STATUS_IN_QUEUE);
+    //SetGuidStatus(guidInfo, LFG_PLAYER_STATUS_IN_QUEUE);
 }
 
 bool LFGQMgr::IsInQueue(ObjectGuid const& guid)
@@ -1768,8 +1771,6 @@ void LFGQMgr::SetGuidStatus(s_GuidInfo* guidInfo, e_LfgPlayerStatus status, uint
 {
     if (guidInfo)
     {
-
-
         switch (status)
         {
         case LFG_PLAYER_STATUS_IN_QUEUE :
