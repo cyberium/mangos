@@ -420,7 +420,7 @@ void WorldSession::HandleBattleFieldPortOpcode( WorldPacket &recv_data )
                 return;                                 // cheating?
 
             if (!_player->InBattleGround())
-                _player->SetBattleGroundEntryPoint();
+                _player->SetEntryPoint();
 
             // resurrect the player
             if (!_player->isAlive())

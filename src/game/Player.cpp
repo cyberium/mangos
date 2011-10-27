@@ -1852,11 +1852,11 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
     return true;
 }
 
-bool Player::TeleportToBGEntryPoint()
+bool Player::TeleportToEntryPoint()
 {
-    ScheduleDelayedOperation(DELAYED_BG_MOUNT_RESTORE);
-    ScheduleDelayedOperation(DELAYED_BG_TAXI_RESTORE);
-    return TeleportTo(m_bgData.joinPos);
+    ScheduleDelayedOperation(DELAYED_MOUNT_RESTORE);
+    ScheduleDelayedOperation(DELAYED_TAXI_RESTORE);
+    return TeleportTo(m_entryPointData.joinPos);
 }
 
 void Player::ProcessDelayedOperations()
@@ -1894,22 +1894,22 @@ void Player::ProcessDelayedOperations()
         CastSpell(this, 26013, true);               // Deserter
     }
 
-    if (m_DelayedOperations & DELAYED_BG_MOUNT_RESTORE)
+    if (m_DelayedOperations & DELAYED_MOUNT_RESTORE)
     {
-        if (m_bgData.mountSpell)
+        if (m_entryPointData.mountSpell)
         {
-            CastSpell(this, m_bgData.mountSpell, true);
-            m_bgData.mountSpell = 0;
+            CastSpell(this, m_entryPointData.mountSpell, true);
+            m_entryPointData.mountSpell = 0;
         }
     }
 
-    if (m_DelayedOperations & DELAYED_BG_TAXI_RESTORE)
+    if (m_DelayedOperations & DELAYED_TAXI_RESTORE)
     {
-        if (m_bgData.HasTaxiPath())
+        if (m_entryPointData.HasTaxiPath())
         {
-            m_taxi.AddTaxiDestination(m_bgData.taxiPath[0]);
-            m_taxi.AddTaxiDestination(m_bgData.taxiPath[1]);
-            m_bgData.ClearTaxiPath();
+            m_taxi.AddTaxiDestination(m_entryPointData.taxiPath[0]);
+            m_taxi.AddTaxiDestination(m_entryPointData.taxiPath[1]);
+            m_entryPointData.ClearTaxiPath();
 
             ContinueTaxiFlight();
         }
@@ -15267,6 +15267,26 @@ void Player::_LoadEquipmentSets(QueryResult *result)
     delete result;
 }
 
+void Player::_LoadEntryPointData(QueryResult* result)
+{
+    if (!result)
+        return;
+
+    // Expecting only one row
+    Field *fields = result->Fetch();
+    /* bgInstanceID, bgTeam, x, y, z, o, map, taxi[0], taxi[1], mountSpell */
+    m_entryPointData.joinPos      = WorldLocation(fields[6].GetUInt32(),    // Map
+                                          fields[2].GetFloat(),     // X
+                                          fields[3].GetFloat(),     // Y
+                                          fields[4].GetFloat(),     // Z
+                                          fields[5].GetFloat());    // Orientation
+    m_entryPointData.taxiPath[0]  = fields[7].GetUInt32();
+    m_entryPointData.taxiPath[1]  = fields[8].GetUInt32();
+    m_entryPointData.mountSpell   = fields[9].GetUInt32();
+
+    delete result;
+}
+
 void Player::_LoadBGData(QueryResult* result)
 {
     if (!result)
@@ -15277,15 +15297,6 @@ void Player::_LoadBGData(QueryResult* result)
     /* bgInstanceID, bgTeam, x, y, z, o, map, taxi[0], taxi[1], mountSpell */
     m_bgData.bgInstanceID = fields[0].GetUInt32();
     m_bgData.bgTeam       = Team(fields[1].GetUInt32());
-    m_bgData.joinPos      = WorldLocation(fields[6].GetUInt32(),    // Map
-                                          fields[2].GetFloat(),     // X
-                                          fields[3].GetFloat(),     // Y
-                                          fields[4].GetFloat(),     // Z
-                                          fields[5].GetFloat());    // Orientation
-    m_bgData.taxiPath[0]  = fields[7].GetUInt32();
-    m_bgData.taxiPath[1]  = fields[8].GetUInt32();
-    m_bgData.mountSpell   = fields[9].GetUInt32();
-
     delete result;
 }
 
@@ -15504,6 +15515,7 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder *holder )
     }
 
     _LoadBGData(holder->GetResult(PLAYER_LOGIN_QUERY_LOADBGDATA));
+    _LoadEntryPointData(holder->GetResult(PLAYER_LOGIN_QUERY_LOADENTRYPOINTDATA));
 
     if (m_bgData.bgInstanceID)                              //saved in BattleGround
     {
@@ -15531,7 +15543,7 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder *holder )
                 currentBg->RemovePlayerAtLeave(GetObjectGuid(), false, true);
 
             // move to bg enter point
-            const WorldLocation& _loc = GetBattleGroundEntryPoint();
+            const WorldLocation& _loc = GetEntryPoint();
             SetLocationMapId(_loc.mapid);
             Relocate(_loc.coord_x, _loc.coord_y, _loc.coord_z, _loc.orientation);
 
@@ -15548,7 +15560,7 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder *holder )
         // player can have current coordinates in to BG/Arena map, fix this
         if(!mapEntry || mapEntry->IsBattleGroundOrArena())
         {
-            const WorldLocation& _loc = GetBattleGroundEntryPoint();
+            const WorldLocation& _loc = GetEntryPoint();
             SetLocationMapId(_loc.mapid);
             Relocate(_loc.coord_x, _loc.coord_y, _loc.coord_z, _loc.orientation);
 
@@ -15804,11 +15816,11 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder *holder )
     SetUInt32Value(PLAYER_CHOSEN_TITLE, curTitle);
 
     // Not finish taxi flight path
-    if (m_bgData.HasTaxiPath())
+    if (m_entryPointData.HasTaxiPath())
     {
         m_taxi.ClearTaxiDestinations();
         for (int i = 0; i < 2; ++i)
-            m_taxi.AddTaxiDestination(m_bgData.taxiPath[i]);
+            m_taxi.AddTaxiDestination(m_entryPointData.taxiPath[i]);
     }
     else if (!m_taxi.LoadTaxiDestinationsFromString(taxi_nodes, GetTeam()))
     {
@@ -17322,6 +17334,7 @@ void Player::SaveToDB()
     if (m_mailsUpdated)                                     //save mails only when needed
         _SaveMail();
 
+    _SaveEntryPointData();
     _SaveBGData();
     _SaveInventory();
     _SaveQuestStatus();
@@ -19704,58 +19717,61 @@ void Player::ToggleMetaGemsActive(uint8 exceptslot, bool apply)
     }
 }
 
-void Player::SetBattleGroundEntryPoint()
+void Player::SetEntryPoint()
 {
+    // If new entry point is BG or arena entrypoint is already set (will be possible with LFG implementation)
+    if (GetMap()->IsBattleGroundOrArena())
+        return;
+
     // Taxi path store
     if (!m_taxi.empty())
     {
-        m_bgData.mountSpell  = 0;
-        m_bgData.taxiPath[0] = m_taxi.GetTaxiSource();
-        m_bgData.taxiPath[1] = m_taxi.GetTaxiDestination();
+        m_entryPointData.mountSpell  = 0;
+        m_entryPointData.taxiPath[0] = m_taxi.GetTaxiSource();
+        m_entryPointData.taxiPath[1] = m_taxi.GetTaxiDestination();
 
         // On taxi we don't need check for dungeon
-        m_bgData.joinPos = WorldLocation(GetMapId(), GetPositionX(), GetPositionY(), GetPositionZ(), GetOrientation());
-        m_bgData.m_needSave = true;
+        m_entryPointData.joinPos = WorldLocation(GetMapId(), GetPositionX(), GetPositionY(), GetPositionZ(), GetOrientation());
+        m_entryPointData.m_needSave = true;
         return;
     }
     else
     {
-        m_bgData.ClearTaxiPath();
+        m_entryPointData.ClearTaxiPath();
 
         // Mount spell id storing
         if (IsMounted())
         {
             AuraList const& auras = GetAurasByType(SPELL_AURA_MOUNTED);
             if (!auras.empty())
-                m_bgData.mountSpell = (*auras.begin())->GetId();
+                m_entryPointData.mountSpell = (*auras.begin())->GetId();
         }
         else
-            m_bgData.mountSpell = 0;
+            m_entryPointData.mountSpell = 0;
 
         // If map is dungeon find linked graveyard
         if(GetMap()->IsDungeon())
         {
             if (const WorldSafeLocsEntry* entry = sObjectMgr.GetClosestGraveYard(GetPositionX(), GetPositionY(), GetPositionZ(), GetMapId(), GetTeam()))
             {
-                m_bgData.joinPos = WorldLocation(entry->map_id, entry->x, entry->y, entry->z, 0.0f);
-                m_bgData.m_needSave = true;
+                m_entryPointData.joinPos = WorldLocation(entry->map_id, entry->x, entry->y, entry->z, 0.0f);
+                m_entryPointData.m_needSave = true;
                 return;
             }
             else
                 sLog.outError("SetBattleGroundEntryPoint: Dungeon map %u has no linked graveyard, setting home location as entry point.", GetMapId());
         }
-        // If new entry point is not BG or arena set it
-        else if (!GetMap()->IsBattleGroundOrArena())
+        else
         {
-            m_bgData.joinPos = WorldLocation(GetMapId(), GetPositionX(), GetPositionY(), GetPositionZ(), GetOrientation());
-            m_bgData.m_needSave = true;
+            m_entryPointData.joinPos = WorldLocation(GetMapId(), GetPositionX(), GetPositionY(), GetPositionZ(), GetOrientation());
+            m_entryPointData.m_needSave = true;
             return;
         }
     }
 
     // In error cases use homebind position
-    m_bgData.joinPos = WorldLocation(m_homebindMapId, m_homebindX, m_homebindY, m_homebindZ, 0.0f);
-    m_bgData.m_needSave = true;
+    m_entryPointData.joinPos = WorldLocation(m_homebindMapId, m_homebindX, m_homebindY, m_homebindZ, 0.0f);
+    m_entryPointData.m_needSave = true;
 }
 
 void Player::LeaveBattleground(bool teleportToEntryPoint)
@@ -22581,24 +22597,49 @@ void Player::_SaveBGData()
 
     if (m_bgData.bgInstanceID)
     {
-        stmt = CharacterDatabase.CreateStatement(insBGData, "INSERT INTO character_battleground_data VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        /* guid, bgInstanceID, bgTeam, x, y, z, o, map, taxi[0], taxi[1], mountSpell */
+        stmt = CharacterDatabase.CreateStatement(insBGData, "INSERT INTO character_battleground_data VALUES (?, ?, ?)");
+        /* guid, bgInstanceID, bgTeam */
         stmt.addUInt32(GetGUIDLow());
         stmt.addUInt32(m_bgData.bgInstanceID);
         stmt.addUInt32(uint32(m_bgData.bgTeam));
-        stmt.addFloat(m_bgData.joinPos.coord_x);
-        stmt.addFloat(m_bgData.joinPos.coord_y);
-        stmt.addFloat(m_bgData.joinPos.coord_z);
-        stmt.addFloat(m_bgData.joinPos.orientation);
-        stmt.addUInt32(m_bgData.joinPos.mapid);
-        stmt.addUInt32(m_bgData.taxiPath[0]);
-        stmt.addUInt32(m_bgData.taxiPath[1]);
-        stmt.addUInt32(m_bgData.mountSpell);
 
         stmt.Execute();
     }
 
     m_bgData.m_needSave = false;
+}
+
+void Player::_SaveEntryPointData()
+{
+    // nothing save
+    if (!m_entryPointData.m_needSave)
+        return;
+
+    static SqlStatementID delEPData ;
+    static SqlStatementID insEPData ;
+
+    SqlStatement stmt =  CharacterDatabase.CreateStatement(delEPData, "DELETE FROM character_entrypoint_data WHERE guid = ?");
+
+    stmt.PExecute(GetGUIDLow());
+
+    if (m_bgData.bgInstanceID)              // must add LFG test when implemented || (m_lfgData.instanceID))
+    {
+        stmt = CharacterDatabase.CreateStatement(insEPData, "INSERT INTO character_entrypoint_data VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        /* guid, x, y, z, o, map, taxi[0], taxi[1], mountSpell */
+        stmt.addUInt32(GetGUIDLow());
+        stmt.addFloat(m_entryPointData.joinPos.coord_x);
+        stmt.addFloat(m_entryPointData.joinPos.coord_y);
+        stmt.addFloat(m_entryPointData.joinPos.coord_z);
+        stmt.addFloat(m_entryPointData.joinPos.orientation);
+        stmt.addUInt32(m_entryPointData.joinPos.mapid);
+        stmt.addUInt32(m_entryPointData.taxiPath[0]);
+        stmt.addUInt32(m_entryPointData.taxiPath[1]);
+        stmt.addUInt32(m_entryPointData.mountSpell);
+
+        stmt.Execute();
+    }
+
+    m_entryPointData.m_needSave = false;
 }
 
 void Player::DeleteEquipmentSet(uint64 setGuid)

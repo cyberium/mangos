@@ -1110,7 +1110,7 @@ void BattleGround::RemovePlayerAtLeave(ObjectGuid guid, bool Transport, bool Sen
         plr->SetBGTeam(TEAM_NONE);
 
         if (Transport)
-            plr->TeleportToBGEntryPoint();
+            plr->TeleportToEntryPoint();
 
         DETAIL_LOG("BATTLEGROUND: Removed player %s from BattleGround.", plr->GetName());
     }

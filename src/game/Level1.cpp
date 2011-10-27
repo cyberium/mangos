@@ -399,7 +399,7 @@ bool ChatHandler::HandleNamegoCommand(char* args)
             target->SetBattleGroundId(m_session->GetPlayer()->GetBattleGroundId(), m_session->GetPlayer()->GetBattleGroundTypeId());
             // remember current position as entry point for return at bg end teleportation
             if (!target->GetMap()->IsBattleGroundOrArena())
-                target->SetBattleGroundEntryPoint();
+                target->SetEntryPoint();
         }
         else if (pMap->IsDungeon())
         {
@@ -513,7 +513,7 @@ bool ChatHandler::HandleGonameCommand(char* args)
             _player->SetBattleGroundId(target->GetBattleGroundId(), target->GetBattleGroundTypeId());
             // remember current position as entry point for return at bg end teleportation
             if (!_player->GetMap()->IsBattleGroundOrArena())
-                _player->SetBattleGroundEntryPoint();
+                _player->SetEntryPoint();
         }
         else if(cMap->IsDungeon())
         {

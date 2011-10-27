@@ -827,6 +827,7 @@ enum PlayerLoginQueryIndex
     PLAYER_LOGIN_QUERY_LOADCRITERIAPROGRESS,
     PLAYER_LOGIN_QUERY_LOADEQUIPMENTSETS,
     PLAYER_LOGIN_QUERY_LOADBGDATA,
+    PLAYER_LOGIN_QUERY_LOADENTRYPOINTDATA,
     PLAYER_LOGIN_QUERY_LOADACCOUNTDATA,
     PLAYER_LOGIN_QUERY_LOADSKILLS,
     PLAYER_LOGIN_QUERY_LOADGLYPHS,
@@ -844,8 +845,8 @@ enum PlayerDelayedOperations
     DELAYED_SAVE_PLAYER         = 0x01,
     DELAYED_RESURRECT_PLAYER    = 0x02,
     DELAYED_SPELL_CAST_DESERTER = 0x04,
-    DELAYED_BG_MOUNT_RESTORE    = 0x08,                     ///< Flag to restore mount state after teleport from BG
-    DELAYED_BG_TAXI_RESTORE     = 0x10,                     ///< Flag to restore taxi state after teleport from BG
+    DELAYED_MOUNT_RESTORE       = 0x08,                     ///< Flag to restore mount state after teleport from BG
+    DELAYED_TAXI_RESTORE        = 0x10,                     ///< Flag to restore taxi state after teleport from BG
     DELAYED_END
 };
 
@@ -927,10 +928,10 @@ std::ostringstream& operator<< (std::ostringstream& ss, PlayerTaxi const& taxi);
 struct BGData
 {
     BGData() : bgInstanceID(0), bgTypeID(BATTLEGROUND_TYPE_NONE), bgAfkReportedCount(0), bgAfkReportedTimer(0),
-        bgTeam(TEAM_NONE), mountSpell(0), m_needSave(false) { ClearTaxiPath(); }
+        bgTeam(TEAM_NONE), m_needSave(false){}
 
     uint32 bgInstanceID;                                    ///< This variable is set to bg->m_InstanceID, saved
-                                                            ///  when player is teleported to BG - (it is battleground's GUID)
+    ///  when player is teleported to BG - (it is battleground's GUID)
     BattleGroundTypeId bgTypeID;
 
     std::set<uint32>   bgAfkReporter;
@@ -939,6 +940,12 @@ struct BGData
 
     Team bgTeam;                                            ///< What side the player will be added to, saved
 
+    bool m_needSave;                                        ///< true, if saved to DB fields modified after prev. save (marked as "saved" above)
+};
+
+struct EntryPointData
+{
+    EntryPointData() : mountSpell(0), m_needSave(false) { ClearTaxiPath(); }
 
     uint32 mountSpell;                                      ///< Mount used before join to bg, saved
     uint32 taxiPath[2];                                     ///< Current taxi active path start/end nodes, saved
@@ -1029,7 +1036,7 @@ class MANGOS_DLL_SPEC Player : public Unit
             return TeleportTo(loc.mapid, loc.coord_x, loc.coord_y, loc.coord_z, loc.orientation, options);
         }
 
-        bool TeleportToBGEntryPoint();
+        bool TeleportToEntryPoint();
 
         void SetSummonPoint(uint32 mapid, float x, float y, float z)
         {
@@ -2114,8 +2121,8 @@ class MANGOS_DLL_SPEC Player : public Unit
                     return true;
             return false;
         }
-        WorldLocation const& GetBattleGroundEntryPoint() const { return m_bgData.joinPos; }
-        void SetBattleGroundEntryPoint();
+        WorldLocation const& GetEntryPoint() const { return m_entryPointData.joinPos; }
+        void SetEntryPoint();
 
         void SetBGTeam(Team team) { m_bgData.bgTeam = team; m_bgData.m_needSave = true; }
         Team GetBGTeam() const { return m_bgData.bgTeam ? m_bgData.bgTeam : GetTeam(); }
@@ -2346,6 +2353,7 @@ class MANGOS_DLL_SPEC Player : public Unit
 
         BgBattleGroundQueueID_Rec m_bgBattleGroundQueueID[PLAYER_MAX_BATTLEGROUND_QUEUES];
         BGData                    m_bgData;
+        EntryPointData            m_entryPointData;
 
         /*********************************************************/
         /***                    QUEST SYSTEM                   ***/
@@ -2385,6 +2393,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         void _LoadArenaTeamInfo(QueryResult *result);
         void _LoadEquipmentSets(QueryResult *result);
         void _LoadBGData(QueryResult* result);
+        void _LoadEntryPointData(QueryResult* result);
         void _LoadGlyphs(QueryResult *result);
         void _LoadIntoDataField(const char* data, uint32 startOffset, uint32 count);
 
@@ -2404,6 +2413,7 @@ class MANGOS_DLL_SPEC Player : public Unit
         void _SaveSpells();
         void _SaveEquipmentSets();
         void _SaveBGData();
+        void _SaveEntryPointData();
         void _SaveGlyphs();
         void _SaveTalents();
         void _SaveStats();
@@ -2595,7 +2605,6 @@ class MANGOS_DLL_SPEC Player : public Unit
         }
 
         void _fillGearScoreData(Item* item, GearScoreVec* gearScore, uint32& twoHandScore);
-
         Unit *m_mover;
         Camera m_camera;
 
