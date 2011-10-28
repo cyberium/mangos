@@ -20203,7 +20203,7 @@ void Player::SendInitialPacketsAfterAddToMap()
     Group* grp = GetGroup();
     if ((grp) && (grp->IsLFGGroup()))
     {
-        if (grp->GetDungeonCooldown())
+        if ((grp->GetDungeonCooldown()) && (!this->HasAura(71328))) // probably not enought to avoid recast of this spell
             CastSpell(this, 71328, true);
         if (grp->CanHaveLuckOfTheDraw())
             CastSpell(this,72221, true);
