@@ -259,7 +259,6 @@ class MANGOS_DLL_SPEC Group
         bool   IsLFGGroup(ObjectGuid guid = ObjectGuid());
         bool   SetLFGDungeonEntry(const LFGDungeonEntry* dungeonEntry);
         WorldLocation const* GetLfgDestination();
-        WorldLocation const* GetLfgOriginalPos(ObjectGuid guid);
         void   SetLfgRoles(ObjectGuid guid, uint8 roles);
         uint8  GetLfgRoles(ObjectGuid guid);
         bool   CanDoLfgKick();

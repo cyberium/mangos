@@ -871,6 +871,11 @@ struct InstancePlayerBind
     InstancePlayerBind() : state(NULL), perm(false) {}
 };
 
+struct LfgPlayerInfo
+{
+    WorldLocation instancePos;
+};
+
 class MANGOS_DLL_SPEC PlayerTaxi
 {
     public:
@@ -2334,6 +2339,12 @@ class MANGOS_DLL_SPEC Player : public Unit
         void SetTitle(CharTitlesEntry const* title, bool lost = false);
 
         bool canSeeSpellClickOn(Creature const* creature) const;
+        /*********************************************************/
+        /***                   LFG SYSTEM                      ***/
+        /*********************************************************/
+        void LFGSetPlayerMapLocation() {GetPosition(m_lfgPlayerInfo.instancePos);}
+        void TeleportBackToLFGDungeon() {TeleportTo(m_lfgPlayerInfo.instancePos);}
+
     protected:
 
         uint32 m_contestedPvPTimer;
@@ -2651,6 +2662,8 @@ class MANGOS_DLL_SPEC Player : public Unit
         uint32 m_timeSyncServer;
 
         uint32 m_cachedGS;
+
+        LfgPlayerInfo m_lfgPlayerInfo;
 };
 
 void AddItemsSetItem(Player*player,Item *item);

@@ -253,7 +253,7 @@ void LFGMgr::LfgEvent(e_LfgEventType eventType, ObjectGuid guid, ...)
                 WorldLocation const* dungeonLocation = grp->GetLfgDestination();
                 if ((!plr->GetMap()->IsDungeon()) || (dungeonLocation->mapid != plr->GetMapId()))
                     break;
-                plr->TeleportTo(*grp->GetLfgOriginalPos(guid));
+                plr->TeleportToEntryPoint();
                 break;
             }
             s_LfgActionMsg* actionMsg = new s_LfgActionMsg(LFG_ACTION_REMOVE_PLAYER_FROM_QUEUE_NOW, guid);
@@ -284,7 +284,7 @@ void LFGMgr::LfgEvent(e_LfgEventType eventType, ObjectGuid guid, ...)
             if (plr->GetMap()->IsDungeon())
             {
                 if (MapId != plr->GetMapId())
-                    plr->TeleportTo(*grp->GetLfgOriginalPos(guid));
+                    plr->TeleportToEntryPoint();
             }
             else
             {
@@ -302,8 +302,20 @@ void LFGMgr::LfgEvent(e_LfgEventType eventType, ObjectGuid guid, ...)
         {
             bool out = va_arg(Arguments, bool);
             sLog.outDebug("LFGMgr::LfgEvent > TELEPORT Player [%u] out = %s", guid.GetCounter(), out ? "true" : "false");
-            s_LfgActionMsg* actionMsg = new s_LfgActionMsg(LFG_ACTION_TELEPORT_PLAYER, guid, (uint32) out);
-            m_ActionMsgList.Add(actionMsg);
+            Player* plr = sObjectMgr.GetPlayer(guid);
+            if (!plr)
+                break;
+
+            if (out)
+            {
+                plr->LFGSetPlayerMapLocation();     // Set instance location of player befor get it out
+                plr->TeleportToEntryPoint();
+            }
+            else
+            {
+                plr->SetEntryPoint();               // Set entry point for teleport back after instance
+                plr->TeleportBackToLFGDungeon();    // Teleport back to dungeon (must use LFGSetPlayerMapLocation before)
+            }
             break;
         }
 
@@ -501,29 +513,22 @@ void LFGMgr::DoProcessActionMsg(uint32 diff)
             if (actionMsg->ElapsedTime >= 200)
             {
                     sLog.outDebug("LFGMgr::ProcessActionMsg > Enterring TELEPORT message processing for [%u]", actionMsg->Guid.GetCounter());
-
                     if (plr)
                     {
                         Group* grp = plr->GetGroup();
                         if ((grp) && (grp->IsLFGGroup(actionMsg->Guid)))
                         {
-                            if (actionMsg->Uint32Value)
-                                DoTeleportPlayer(plr, grp->GetLfgOriginalPos(actionMsg->Guid));
-                            else
-                            {
-                                DoTeleportPlayer(plr, grp->GetLfgDestination());
-                                sLog.outDebug("LFGMgr::ProcessActionMsg > TELEPORT Player [%u] out = %s", actionMsg->Guid.GetCounter(), (actionMsg->Uint32Value) ? "true" : "false");
-                                sLog.outDebug("LFGMgr::ProcessActionMsg > Player [%u] %s the leader", actionMsg->Guid.GetCounter(), (grp->IsLeader(actionMsg->Guid)) ? "is" : "is not");
-                            }
+                            DoTeleportPlayer(plr, grp->GetLfgDestination());
+                            sLog.outDebug("LFGMgr::ProcessActionMsg > TELEPORT Player [%u] out = %s", actionMsg->Guid.GetCounter(), (actionMsg->Uint32Value) ? "true" : "false");
+                            sLog.outDebug("LFGMgr::ProcessActionMsg > Player [%u] %s the leader", actionMsg->Guid.GetCounter(), (grp->IsLeader(actionMsg->Guid)) ? "is" : "is not");
                             //grp->SendUpdate();
                         }
-                        deleteItr=true;
                     }
                     else
                     {
                         sLog.outError("LFGMgr::ProcessActionMsg > ERROR TELEPORTING> Player [%u] out = %s", actionMsg->Guid.GetCounter(), (actionMsg->Uint32Value) ? "true" : "false");
-                        deleteItr=true;
                     }
+                    deleteItr=true;
 
             }
             else
@@ -1166,8 +1171,8 @@ void LFGMgr::DoCreateGroup(s_LfgProposal* prop)
     FormedGroup->Create(*leaderGuid, plr->GetName(), leaderRoles, prop->NewGroupInfo->DungeonEntry);
     sObjectMgr.AddGroup(FormedGroup);
 
-    //s_LfgActionMsg* actionMsg = new s_LfgActionMsg(LFG_ACTION_TELEPORT_PLAYER, *leaderGuid);
-    //m_ActionMsgList.Add(actionMsg);
+    s_LfgActionMsg* actionMsg = new s_LfgActionMsg(LFG_ACTION_TELEPORT_PLAYER, *leaderGuid);
+    m_ActionMsgList.Add(actionMsg);
 
     bool groupRemoved = false;
     for (tGuidInfoSet::const_iterator itr = prop->NewGroupInfo->NewGroup.begin(); itr != prop->NewGroupInfo->NewGroup.end(); ++itr)
@@ -1177,13 +1182,7 @@ void LFGMgr::DoCreateGroup(s_LfgProposal* prop)
             for (tMemberInfoMap::const_iterator guidItr = (*itr)->MemberInfo.begin(); guidItr != (*itr)->MemberInfo.end(); ++guidItr)
             {
                 if (guidItr->second.Guid == *leaderGuid)
-                {
-                   s_LfgActionMsg* actionMsg = new s_LfgActionMsg(LFG_ACTION_TELEPORT_PLAYER, *leaderGuid);
-                   m_ActionMsgList.Add(actionMsg);
-                   sLog.outDebug("LFGMgr::DoCreateGroup> [%u] is added for teleport", (guidItr)->second.Guid.GetCounter());
-                   RemovePlayerFromQueue(*leaderGuid);
                    continue;
-                }
                 Player * plr = sObjectMgr.GetPlayer(guidItr->second.Guid);
                 if (!plr)
                     continue;
@@ -1203,13 +1202,7 @@ void LFGMgr::DoCreateGroup(s_LfgProposal* prop)
         else
         {
             if ((*itr)->Guid == *leaderGuid)
-            {
-               s_LfgActionMsg* actionMsg = new s_LfgActionMsg(LFG_ACTION_TELEPORT_PLAYER, *leaderGuid);
-               m_ActionMsgList.Add(actionMsg);
-               sLog.outDebug("LFGMgr::DoCreateGroup> [%u] is added for teleport", (*itr)->Guid.GetCounter());
-               RemovePlayerFromQueue(*leaderGuid);
                continue;
-            }
             Player * plr = sObjectMgr.GetPlayer((*itr)->Guid);
             if (!plr)
                 continue;
@@ -1228,10 +1221,10 @@ void LFGMgr::DoCreateGroup(s_LfgProposal* prop)
         }
         RemovePlayerFromQueue((*itr)->Guid);
     }
-    //RemovePlayerFromQueue(*leaderGuid);
+    RemovePlayerFromQueue(*leaderGuid);
 
-    s_LfgActionMsg* actionMsg1 = new s_LfgActionMsg(LFG_ACTION_DELAYED_GROUP_UPDATE, FormedGroup->GetId());
-    m_ActionMsgList.Add(actionMsg1);
+    //s_LfgActionMsg* actionMsg1 = new s_LfgActionMsg(LFG_ACTION_DELAYED_GROUP_UPDATE, FormedGroup->GetId());
+    //m_ActionMsgList.Add(actionMsg1);
 
     FormedGroup->SetDungeonDifficulty(Difficulty(prop->NewGroupInfo->DungeonEntry->difficulty));
 }

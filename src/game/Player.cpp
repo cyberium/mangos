@@ -15274,15 +15274,15 @@ void Player::_LoadEntryPointData(QueryResult* result)
 
     // Expecting only one row
     Field *fields = result->Fetch();
-    /* bgInstanceID, bgTeam, x, y, z, o, map, taxi[0], taxi[1], mountSpell */
-    m_entryPointData.joinPos      = WorldLocation(fields[6].GetUInt32(),    // Map
-                                          fields[2].GetFloat(),     // X
-                                          fields[3].GetFloat(),     // Y
-                                          fields[4].GetFloat(),     // Z
-                                          fields[5].GetFloat());    // Orientation
-    m_entryPointData.taxiPath[0]  = fields[7].GetUInt32();
-    m_entryPointData.taxiPath[1]  = fields[8].GetUInt32();
-    m_entryPointData.mountSpell   = fields[9].GetUInt32();
+    /* x, y, z, o, map, taxi[0], taxi[1], mountSpell */
+    m_entryPointData.joinPos      = WorldLocation(fields[4].GetUInt32(),    // Map
+                                                  fields[0].GetFloat(),     // X
+                                                  fields[1].GetFloat(),     // Y
+                                                  fields[2].GetFloat(),     // Z
+                                                  fields[3].GetFloat());    // Orientation
+    m_entryPointData.taxiPath[0]  = fields[5].GetUInt32();
+    m_entryPointData.taxiPath[1]  = fields[6].GetUInt32();
+    m_entryPointData.mountSpell   = fields[7].GetUInt32();
 
     delete result;
 }
@@ -15294,7 +15294,7 @@ void Player::_LoadBGData(QueryResult* result)
 
     // Expecting only one row
     Field *fields = result->Fetch();
-    /* bgInstanceID, bgTeam, x, y, z, o, map, taxi[0], taxi[1], mountSpell */
+    /* bgInstanceID, bgTeam */
     m_bgData.bgInstanceID = fields[0].GetUInt32();
     m_bgData.bgTeam       = Team(fields[1].GetUInt32());
     delete result;
@@ -16815,6 +16815,10 @@ void Player::_LoadGroup(QueryResult *result)
                 SetDungeonDifficulty(group->GetDungeonDifficulty());
                 SetRaidDifficulty(group->GetRaidDifficulty());
             }
+
+            // If it's LFG Group we must initialise player map localisation if player get back to instance using "enter to instance" button.
+            if (group->IsLFGGroup())
+                m_lfgPlayerInfo.instancePos = *group->GetLfgDestination();
         }
     }
 }
@@ -22631,8 +22635,8 @@ void Player::_SaveEntryPointData()
     SqlStatement stmt =  CharacterDatabase.CreateStatement(delEPData, "DELETE FROM character_entrypoint_data WHERE guid = ?");
 
     stmt.PExecute(GetGUIDLow());
-
-    if (m_bgData.bgInstanceID)              // must add LFG test when implemented || (m_lfgData.instanceID))
+    Group* grp = GetGroup();
+    if ((m_bgData.bgInstanceID) || ((grp) && (grp->IsLFGGroup())))
     {
         stmt = CharacterDatabase.CreateStatement(insEPData, "INSERT INTO character_entrypoint_data VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
         /* guid, x, y, z, o, map, taxi[0], taxi[1], mountSpell */

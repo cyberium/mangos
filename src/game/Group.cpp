@@ -476,7 +476,7 @@ void Group::Disband(bool hideDestroy)
                 player->RemoveAurasDueToSpell(LFG_SPELL_LUCK_OF_THE_DRAW);
             // Replace player to his original position
             if ((player->GetMap()->IsDungeon()) && (m_LfgGroupData.LfgDungeonLocation.mapid == player->GetMapId()))
-                player->TeleportTo(citr->originalLocation);
+                player->TeleportToEntryPoint();
         }
         //we cannot call _removeMember because it would invalidate member iterator
         //if we are removing player from battleground raid
@@ -561,17 +561,6 @@ WorldLocation const* Group::GetLfgDestination()
 {
     if (IsLFGGroup())
         return &m_LfgGroupData.LfgDungeonLocation;
-    return NULL;
-}
-
-WorldLocation const* Group::GetLfgOriginalPos(ObjectGuid guid)
-{
-    if (IsLFGGroup())
-    {
-        member_witerator slot = _getMemberWSlot(guid);
-        if (slot != m_memberSlots.end())
-            return &slot->originalLocation;
-    }
     return NULL;
 }
 
@@ -1357,8 +1346,6 @@ bool Group::_addMember(ObjectGuid guid, const char* name, bool isAssistant, uint
     member.group     = group;
     member.roles     = roles;
     member.assistant = isAssistant;
-    if (player)
-        player->GetPosition(member.originalLocation);
     m_memberSlots.push_back(member);
 
     SubGroupCounterIncrease(group);
