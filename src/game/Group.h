@@ -197,6 +197,7 @@ struct s_LfgGroupData
     e_LfgGroupStatus        LfgStatus;                 // Status but not realy used
     uint32                  LfgKicksCount;             // Kicks Done
     time_t                  LfgLastKickDone;           // Last Kicks
+    time_t                  LfgCreatedTime;            // Time when group created
     bool                    CanHaveLuckOfTheDraw;      // If at least one member is pickup.
     s_LfgGroupData() : LfgDungeonEntry(NULL), LfgStatus(LFG_STATUS_NOT_SAVED), LfgKicksCount(0), CanHaveLuckOfTheDraw(false)
     {
@@ -267,6 +268,7 @@ class MANGOS_DLL_SPEC Group
         uint32 GetLfgKickCoolDown();
         void   SetLuckOfTheDraw();
         bool   CanHaveLuckOfTheDraw();
+        uint32 GetDungeonCooldown();
 
         // properties accessories
         uint32 GetId() const { return m_Id; }
@@ -478,7 +480,6 @@ class MANGOS_DLL_SPEC Group
                 flags |= GROUP_MAIN_TANK;
             return GroupFlagMask(flags);
         }
-
         uint32              m_Id;                           // 0 for not created or BG groups
         MemberSlotList      m_memberSlots;
         GroupRefManager     m_memberMgr;

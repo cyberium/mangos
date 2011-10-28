@@ -20198,6 +20198,16 @@ void Player::SendInitialPacketsAfterAddToMap()
     SendAurasForTarget(this);
     SendEnchantmentDurations();                             // must be after add to map
     SendItemDurations();                                    // must be after add to map
+
+    // For LFG
+    Group* grp = GetGroup();
+    if ((grp) && (grp->IsLFGGroup()))
+    {
+        if (grp->GetDungeonCooldown())
+            CastSpell(this, 71328, true);
+        if (grp->CanHaveLuckOfTheDraw())
+            CastSpell(this,72221, true);
+    }
 }
 
 void Player::SendUpdateToOutOfRangeGroupMembers()

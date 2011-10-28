@@ -498,7 +498,7 @@ void LFGMgr::DoProcessActionMsg(uint32 diff)
         }
         case LFG_ACTION_TELEPORT_PLAYER :
         {
-            if (actionMsg->ElapsedTime >= 0000)
+            if (actionMsg->ElapsedTime >= 200)
             {
                     sLog.outDebug("LFGMgr::ProcessActionMsg > Enterring TELEPORT message processing for [%u]", actionMsg->Guid.GetCounter());
 
@@ -507,37 +507,14 @@ void LFGMgr::DoProcessActionMsg(uint32 diff)
                         Group* grp = plr->GetGroup();
                         if ((grp) && (grp->IsLFGGroup(actionMsg->Guid)))
                         {
-
-                            if (!actionMsg->Uint32Value2)
-                            {
-                                if (actionMsg->Uint32Value)
-                                    DoTeleportPlayer(plr, grp->GetLfgOriginalPos(actionMsg->Guid));
-                                else
-                                {
-                                    DoTeleportPlayer(plr, grp->GetLfgDestination());
-                                    actionMsg->Uint32Value2 = 1;
-                                    sLog.outDebug("LFGMgr::ProcessActionMsg > TELEPORT Player [%u] out = %s", actionMsg->Guid.GetCounter(), (actionMsg->Uint32Value) ? "true" : "false");
-                                    sLog.outDebug("LFGMgr::ProcessActionMsg > Player [%u] %s the leader", actionMsg->Guid.GetCounter(), (grp->IsLeader(actionMsg->Guid)) ? "is" : "is not");
-                                    actionMsg->ElapsedTime = 0;
-                                    break;
-                                }
-                            }
+                            if (actionMsg->Uint32Value)
+                                DoTeleportPlayer(plr, grp->GetLfgOriginalPos(actionMsg->Guid));
                             else
                             {
-                                 if (!plr->IsBeingTeleported())
-                                 {
-                                     if (grp->CanHaveLuckOfTheDraw())
-                                        plr->CastSpell(plr, LFG_SPELL_LUCK_OF_THE_DRAW, true);
-                                     plr->CastSpell(plr, LFG_SPELL_DUNGEON_COOLDOWN, true);
-                                     sLog.outDebug("LFGMgr::ProcessActionMsg > Player [%u] received LFG_SPELL_DUNGEON_COOLDOWN", actionMsg->Guid.GetCounter());
-                                 }
-                                 else
-                                 {
-                                     actionMsg->ElapsedTime = 0;
-                                     break;
-                                 }
+                                DoTeleportPlayer(plr, grp->GetLfgDestination());
+                                sLog.outDebug("LFGMgr::ProcessActionMsg > TELEPORT Player [%u] out = %s", actionMsg->Guid.GetCounter(), (actionMsg->Uint32Value) ? "true" : "false");
+                                sLog.outDebug("LFGMgr::ProcessActionMsg > Player [%u] %s the leader", actionMsg->Guid.GetCounter(), (grp->IsLeader(actionMsg->Guid)) ? "is" : "is not");
                             }
-
                             //grp->SendUpdate();
                         }
                         deleteItr=true;

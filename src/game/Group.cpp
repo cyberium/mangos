@@ -132,10 +132,29 @@ bool Group::Create(ObjectGuid guid, const char * name, uint32 roles, const LFGDu
     m_raidDifficulty = RAID_DIFFICULTY_10MAN_NORMAL;
 
     // Set type group to LFG
-    if (roles != 0)
+    uint32 dungeonId=0;
+    if ((roles != 0) && (dungeonEntry))
     {
         m_groupType = GroupType(m_groupType | GROUPTYPE_LFD | GROUPTYPE_UNK1);
         m_lootMethod = NEED_BEFORE_GREED;
+
+        AreaTrigger const* at = sObjectMgr.GetMapEntranceTrigger(dungeonEntry->map);
+        if (!at)
+        {
+            sLog.outError("Group::Create> Unable to get areatrigger of mapid=%u for dungeon %u", dungeonEntry->map, dungeonEntry->ID);
+            m_groupType = GROUPTYPE_NORMAL;
+        }
+        else
+        {
+            m_LfgGroupData.LfgDungeonEntry = dungeonEntry;
+            dungeonId = dungeonEntry->ID;
+            m_LfgGroupData.LfgCreatedTime = time(NULL);
+            m_LfgGroupData.LfgDungeonLocation.coord_x = at->target_X;
+            m_LfgGroupData.LfgDungeonLocation.coord_y = at->target_Y;
+            m_LfgGroupData.LfgDungeonLocation.coord_z = at->target_Z;
+            m_LfgGroupData.LfgDungeonLocation.mapid = at->target_mapId;
+            m_LfgGroupData.LfgDungeonLocation.orientation = at->target_Orientation;
+        }
     }
 
     if (!isBGGroup())
@@ -150,27 +169,6 @@ bool Group::Create(ObjectGuid guid, const char * name, uint32 roles, const LFGDu
         }
 
         Player::ConvertInstancesToGroup(leader, this, guid);
-
-        uint32 dungeonId=0;
-        if (dungeonEntry)
-        {
-            AreaTrigger const* at = sObjectMgr.GetMapEntranceTrigger(dungeonEntry->map);
-            if (!at)
-            {
-                sLog.outError("Group::Create> Unable to get areatrigger of mapid=%u for dungeon %u", dungeonEntry->map, dungeonEntry->ID);
-                m_groupType = GROUPTYPE_NORMAL;
-            }
-            else
-            {
-                m_LfgGroupData.LfgDungeonEntry = dungeonEntry;
-                dungeonId = dungeonEntry->ID;
-                m_LfgGroupData.LfgDungeonLocation.coord_x = at->target_X;
-                m_LfgGroupData.LfgDungeonLocation.coord_y = at->target_Y;
-                m_LfgGroupData.LfgDungeonLocation.coord_z = at->target_Z;
-                m_LfgGroupData.LfgDungeonLocation.mapid = at->target_mapId;
-                m_LfgGroupData.LfgDungeonLocation.orientation = at->target_Orientation;
-            }
-        }
 
         // store group in database
         CharacterDatabase.BeginTransaction();
@@ -656,6 +654,15 @@ uint32 Group::GetLfgKickCoolDown()
         return 0;
     else
         return (m_LfgGroupData.LfgLastKickDone > time(NULL)) ? (m_LfgGroupData.LfgLastKickDone - time(NULL)) : 0;
+}
+
+// Return if we can apply dungeon cooldown.
+uint32 Group::GetDungeonCooldown()
+{
+    uint32 elapsedTime = (time(NULL) - m_LfgGroupData.LfgCreatedTime);
+    if (elapsedTime >= 900)
+        return 0;
+    return elapsedTime - 900;
 }
 
 /*********************************************************/
