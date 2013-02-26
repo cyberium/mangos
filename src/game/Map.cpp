@@ -36,6 +36,7 @@
 #include "MapPersistentStateMgr.h"
 #include "VMapFactory.h"
 #include "MoveMap.h"
+#include "MoveMapSharedDefines.h"
 #include "BattleGround/BattleGroundMgr.h"
 #include "Calendar.h"
 
@@ -2007,4 +2008,159 @@ void Map::RemoveGameObjectModel(const GameObjectModel& mdl)
 bool Map::ContainsGameObjectModel(const GameObjectModel& mdl) const
 {
     return m_dyn_tree.contains(mdl);
+}
+
+bool Map::GetRandomPointUnderWater(uint32 phaseMask, float& x, float& y, float& z, float radius, GridMapLiquidData& liquid_status)
+{
+    const float angle = rand_norm_f() * (M_PI_F * 2.0f);
+    const float range = rand_norm_f() * radius;
+
+    float i_x = x + range * cos(angle);
+    float i_y = y + range * sin(angle);
+
+    // get real ground of new point
+    // the code considere cylindre instead of sphere for possible z
+    float ground = GetHeight(phaseMask, i_x, i_y, z) + 0.5f;     // always a little bit above the ground
+    if (ground > INVALID_HEIGHT)    // GetHeight can fail
+    {
+        // compute up/down max/min offset
+        float z1 = radius + z;
+        if (z1 > liquid_status.level)
+            z1 = liquid_status.level;
+        z1 = fabs(z1);
+
+        float min_z = z - radius;
+        if (min_z < ground)
+            min_z = ground;
+        float z2 = fabs(min_z);
+
+        x = i_x;
+        y = i_y;
+
+        uint32 usable_range = (z1 > z2) ? z1 - z2 : z2 - z1;    // rounded to uint32
+
+        float z_offset = rand_norm_f() * usable_range;
+        z = min_z + z_offset;
+
+        return true;
+    }
+    return false;
+}
+
+bool Map::GetRandomPointInTheAir(uint32 phaseMask, float& x, float& y, float& z, float radius)
+{
+    const float angle = rand_norm_f() * (M_PI_F * 2.0f);
+    const float range = rand_norm_f() * radius;
+
+    float i_x = x + range * cos(angle);
+    float i_y = y + range * sin(angle);
+
+    // get real ground of new point
+    // the code considere cylindre instead of sphere for possible z
+    float ground = GetHeight(phaseMask, i_x, i_y, z);
+    if (ground > INVALID_HEIGHT)    // GetHeight can fail
+    {
+        float min_z = z - radius;
+        if (min_z < ground)
+            min_z = ground + 0.5f;
+        float z1 = fabs(min_z);
+        float z2 = fabs(z + radius);
+
+        uint32 usable_range = (z1 > z2) ? z1 - z2 : z2 - z1;    // rounded to unit32
+
+        x = i_x;
+        y = i_y;
+        z = min_z + rand_norm_f() * (usable_range);
+        return true;
+    }
+    return false;
+}
+
+bool Map::GetRandomPointOnGround(uint32 phaseMask, float& x, float& y, float& z, float radius)
+{
+    const float angle = rand_norm_f() * (M_PI_F * 2.0f);
+    const float range = rand_norm_f() * radius;
+
+    float i_x = x + range * cos(angle);
+    float i_y = y + range * sin(angle);
+    float i_z = z;
+
+    if (MMAP::MMapFactory::IsPathfindingEnabled(i_id))
+    {
+        MMAP::MMapManager* mmap = MMAP::MMapFactory::createOrGetMMapManager();
+        const dtNavMeshQuery* navMeshQuery = mmap->GetNavMeshQuery(i_id, i_InstanceId);
+        if (navMeshQuery)
+        {
+            // mmap provided a valid usable point
+            // by the way z can be a little bit under map due to
+            // approximative data in mmap
+
+            float startPos[3] = {i_y, i_z, i_x};
+            float closestPoint[3] = {0.0f, 0.0f, 0.0f};
+
+            float extents[3] = {1.0f, 5.0f, 1.0f};      // bounds of poly search area
+
+            // we only need ground here
+            dtQueryFilter filter;
+            filter.setIncludeFlags(NAV_GROUND);
+            filter.setExcludeFlags(0);
+
+            dtPolyRef startPosPoly = 0;
+            dtStatus result = navMeshQuery->findNearestPoly(startPos, extents, &filter, &startPosPoly, NULL);
+            if (result == DT_SUCCESS && startPosPoly != 0)
+            {
+                if (navMeshQuery->closestPointOnPoly(startPosPoly, startPos, closestPoint) == DT_SUCCESS)
+                {
+                    i_x = closestPoint[2];
+                    i_y = closestPoint[0];
+                    i_z = closestPoint[1] + 0.5f;
+
+                    GetHitPosition(x, y, z + 0.5f, i_x, i_y, i_z, phaseMask, -0.5f);
+
+                    z = GetHeight(phaseMask, i_x, i_y, i_z);
+                    x = i_x;
+                    y = i_y;
+                    return true;
+                }
+
+                return true;
+            }
+        }
+    }
+
+    float ground_z = GetHeight(phaseMask, i_x, i_y, z);
+    if (ground_z > INVALID_HEIGHT) // GetHeight can fail
+        i_z = ground_z;
+    else
+        return false;
+
+    // here we have a valid position but the point can have a big Z in some case
+    // next code will check angle from 2 points
+    //        c
+    //       /|
+    //      / |
+    //    b/__|a
+
+    // project vector to get only positive value
+    float ab = (x > i_x) ? x - i_x : i_x - x;
+    float ac = (z > i_z) ? z - i_z : i_z - z;
+
+    // slope represented by c angle
+    float slope = 0;
+
+    // check ab vector to avoid divide by 0
+    if (ab > 0.0f)
+    {
+        // compute c angle and convert it from radian to degree
+        slope = atan(ac / ab) * 180 / M_PI_F;
+        if  (slope < 50.0f) // 50 max seem best value for walkable slope
+        {
+            x = i_x;
+            y = i_y;
+            z = i_z;
+            return true;
+        }
+    }
+
+    return false;
 }

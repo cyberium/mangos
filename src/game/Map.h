@@ -283,6 +283,10 @@ class MANGOS_DLL_SPEC Map : public GridRefManager<NGridType>
         // Get Holder for Creature Linking
         CreatureLinkingHolder* GetCreatureLinkingHolder() { return &m_creatureLinkingHolder; }
 
+        bool GetRandomPointOnGround(uint32 phaseMask, float& x, float& y, float& z, float radius);
+        bool GetRandomPointInTheAir(uint32 phaseMask, float& x, float& y, float& z, float radius);
+        bool GetRandomPointUnderWater(uint32 phaseMask, float& x, float& y, float& z, float radius, GridMapLiquidData& liquid_status);
+
     private:
         void LoadMapAndVMap(int gx, int gy);
 

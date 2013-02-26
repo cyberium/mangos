@@ -1927,6 +1927,8 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         bool IsLinkingEventTrigger() const { return m_isCreatureLinkingTrigger; }
 
+        bool GetRandomPosition(float& x, float& y, float& z, float radius);
+
     protected:
         explicit Unit();
 

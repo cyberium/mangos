@@ -41,25 +41,23 @@ RandomMovementGenerator<Creature>::RandomMovementGenerator(const Creature& creat
 template<>
 void RandomMovementGenerator<Creature>::_setRandomLocation(Creature& creature)
 {
-    const float angle = rand_norm_f() * (M_PI_F * 2.0f);
-    const float range = rand_norm_f() * i_radius;
-
-    float destX = i_x + range * cos(angle);
-    float destY = i_y + range * sin(angle);
-    float destZ = i_z + frand(-1, 1) * i_verticalZ;
-    creature.UpdateAllowedPositionZ(destX, destY, destZ);
+    float destX = i_x;
+    float destY = i_y;
+    float destZ = i_z;
 
     creature.addUnitState(UNIT_STAT_ROAMING_MOVE);
 
-    Movement::MoveSplineInit init(creature);
-    init.MoveTo(destX, destY, destZ, true);
-    init.SetWalk(true);
-    init.Launch();
-
-    if (creature.CanFly())
-        i_nextMoveTime.Reset(0);
-    else
+    // check if new random position is assigned, GetRandomPoint may fail
+    if (creature.GetRandomPosition(destX, destY, destZ, i_radius))
+    {
+        Movement::MoveSplineInit init(creature);
+        init.MoveTo(destX, destY, destZ, true);
+        init.SetWalk(true);
+        init.Launch();
         i_nextMoveTime.Reset(urand(500, 10000));
+    }
+    else
+        i_nextMoveTime.Reset(0); // Retry in next update
 }
 
 template<>

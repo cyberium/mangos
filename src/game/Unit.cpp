@@ -11175,3 +11175,54 @@ void Unit::DisableSpline()
     m_movementInfo.RemoveMovementFlag(MovementFlags(MOVEFLAG_SPLINE_ENABLED | MOVEFLAG_FORWARD));
     movespline->_Interrupt();
 }
+
+bool Unit::GetRandomPosition(float& x, float& y, float& z, float radius)
+{
+    if (radius < 0.1f)
+        return false;
+
+    float i_x = x;
+    float i_y = y;
+    float i_z = z;
+
+    uint32 guid = GetObjectGuid().GetCounter();
+    sLog.outString("truc = %u", guid);
+
+    bool newDestAssigned = false;   // used to check if new random destination is found
+    float ground = GetMap()->GetHeight(GetPhaseMask(), i_x, i_y, i_z) + 0.5f;
+
+    bool canFly = false;
+    bool canSwim = true;
+    if (GetTypeId() == TYPEID_UNIT)
+    {
+        canFly = ((Creature*)this)->CanFly();
+        canSwim = ((Creature*)this)->CanSwim();
+    }
+    else
+        canFly = ((Player*)this)->CanFly();
+
+    MovementFlags mf = m_movementInfo.GetMovementFlags();
+    if (canFly && (ground < i_z || (mf & MOVEFLAG_LEVITATING)))
+    {
+        newDestAssigned = GetMap()->GetRandomPointInTheAir(GetPhaseMask(), i_x, i_y, i_z, radius);
+    }
+    else
+    {
+        GridMapLiquidData liquid_status;
+        GridMapLiquidStatus res = GetMap()->GetTerrain()->getLiquidStatus(i_x, i_y, i_z, MAP_ALL_LIQUIDS, &liquid_status);
+        if (canSwim && (res & LIQUID_MAP_UNDER_WATER))
+            newDestAssigned = GetMap()->GetRandomPointUnderWater(GetPhaseMask(), i_x, i_y, i_z, radius, liquid_status);
+        else
+            newDestAssigned = GetMap()->GetRandomPointOnGround(GetPhaseMask(), i_x, i_y, i_z, radius);
+    }
+
+    if (newDestAssigned)
+    {
+        x = i_x;
+        y = i_y;
+        z = i_z;
+        return true;
+    }
+
+    return false;
+}
