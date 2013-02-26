@@ -26,6 +26,7 @@
 #include "GridMap.h"
 #include "VMapFactory.h"
 #include "MoveMap.h"
+#include "MoveMapSharedDefines.h"
 #include "World.h"
 #include "Policies/Singleton.h"
 #include "Util.h"
@@ -769,57 +770,150 @@ int TerrainInfo::UnrefGrid(const uint32& x, const uint32& y)
     return 0;
 }
 
-float TerrainInfo::GetHeightStatic(float x, float y, float z, bool useVmaps/*=true*/, float maxSearchDist/*=DEFAULT_HEIGHT_SEARCH*/) const
+float TerrainInfo::GetHeightStatic(float x, float y, float z, bool useVmapsMmapsData/*=true*/, float maxSearchDist/*=DEFAULT_HEIGHT_SEARCH*/) const
 {
     float mapHeight = VMAP_INVALID_HEIGHT_VALUE;            // Store Height obtained by maps
     float vmapHeight = VMAP_INVALID_HEIGHT_VALUE;           // Store Height obtained by vmaps (in "corridor" of z (or slightly above z)
-
-    float z2 = z + 2.f;
+    float mMapHeight = VMAP_INVALID_HEIGHT_VALUE;           // Store Height obtained by Mmaps
 
     // find raw .map surface under Z coordinates (or well-defined above)
     if (GridMap* gmap = const_cast<TerrainInfo*>(this)->GetGrid(x, y))
         mapHeight = gmap->getHeight(x, y);
 
-    if (useVmaps)
+    // at this point we can conclude if mapHeight is invalid there are no Z corresponding to provided (x,y) pair
+    if (mapHeight <= INVALID_HEIGHT)
+        return INVALID_HEIGHT;
+
+    bool mMapValueFound = false;
+    if ((useVmapsMmapsData) && (MMAP::MMapFactory::IsPathfindingEnabled(GetMapId())))
+    {
+        MMAP::MMapManager* mmap = MMAP::MMapFactory::createOrGetMMapManager();
+
+        // TODO find a way to get instance id (why we need it? mmap is not dynamic, so instead i use 0)
+        const dtNavMeshQuery* navMeshQuery = mmap->GetNavMeshQuery(GetMapId(), 0);
+        if (navMeshQuery)
+        {
+            // mmap data is available so get current poly
+            // try to get it by findNearestPoly()
+            // we'll try with low search box, we need fast possible result so we must limit bounds
+            // and suppose Z we search is not so far than provided Z so we limit search distance to 20.0f
+            dtPolyRef polyRef;
+            float point[3] = {y, z, x};
+            float extents[3] = {1.0f, (maxSearchDist > 20.0f) ? 20.0f : maxSearchDist, 1.0f};      // bounds of poly search area
+
+            // we only need ground here
+            dtQueryFilter filter;
+            filter.setIncludeFlags(NAV_GROUND);
+            filter.setExcludeFlags(0);
+
+            dtStatus result = navMeshQuery->findNearestPoly(point, extents, &filter, &polyRef, NULL);
+            if (result == DT_SUCCESS && polyRef != 0)
+            {
+                if (navMeshQuery->getPolyHeight(polyRef, point, &mMapHeight) == DT_SUCCESS)
+                    mMapValueFound = true;
+            }
+        }
+
+        if (mMapValueFound)
+        {
+            // height from mmap found
+            float sh = fabs(mapHeight);
+            float mh = fabs(mMapHeight);
+            float zh = fabs(z);
+            if (fabs(zh - mh) < maxSearchDist)
+            {
+                // mmap height seem near enough of the value expected
+                // lets check difference between map/mmap height
+                if (fabs(sh - mh) < 7.0f)
+                {
+                    // difference seem normal we'll then use map height has its the more accurate value
+                    // the return here will be used in major case when we are outdoor
+                    return mapHeight;
+                }
+            }
+            else
+                // mMapheight is too different than expected by maxSearchDist
+                // In that case we have mapHeight and mMapHeight but the Z is not within reasonable value
+                // the best solution for that case is to return.
+                return INVALID_HEIGHT;
+
+            // mMapheight is too different than mapHeight, probably indoor case with mapHeight is floorz
+        }
+    }
+
+    // not found a correct height
+    // raisons :
+    //          1 - mMapHeight is not available (no polygone found or MMAPS not enabled)
+    //              in that case we'll try to get info from VMAP data
+    //          2 - mMapheight is too different than mapHeight, probably indoor case with mapHeight is top ground
+    //              the goal is to find a best ground possible near of the provided z
+    //              in that case also we'll try to get height from VMAP but we'll use mMapHeight for reference as its on nearest polygone than wanted z
+
+    if (useVmapsMmapsData)
     {
         VMAP::IVMapManager* vmgr = VMAP::VMapFactory::createOrGetVMapManager();
         if (vmgr->isHeightCalcEnabled())
         {
-            // if mapHeight has been found search vmap height at least until mapHeight point
-            // this prevent case when original Z "too high above ground and vmap height search fail"
-            // this will not affect most normal cases (no map in instance, or stay at ground at continent)
-            if (mapHeight > INVALID_HEIGHT && z2 - mapHeight > maxSearchDist)
-                maxSearchDist = z2 - mapHeight + 1.0f;      // 1.0 make sure that we not fail for case when map height near but above for vamp height
+            if (mMapValueFound)
+            {
+                // mmap is enabled and we found an mmap height
+                // that mmap height is too different than map height
+                // its indoor case with multi-floor
+                // start search the ground from mmapHeight because its the better reference we have for now
+                // as mmap value are always approximative and often under map we add 5.0f to it
+                // also we not expect search more than 10.0f
+                vmapHeight = vmgr->getHeight(GetMapId(), x, y, mMapHeight + 5.0f, 10.0f);
 
-            // look from a bit higher pos to find the floor
-            vmapHeight = vmgr->getHeight(GetMapId(), x, y, z2, maxSearchDist);
+                if (vmapHeight <= INVALID_HEIGHT)
+                    return mMapHeight + 2.0f; // return mmapHeight as workaround (2.0f to be sure be above map)
 
-            // if not found in expected range, look for infinity range (case of far above floor, but below terrain-height)
-            if (vmapHeight <= INVALID_HEIGHT)
-                vmapHeight = vmgr->getHeight(GetMapId(), x, y, z2, 10000.0f);
-
-            // still not found, look near terrain height
-            if (vmapHeight <= INVALID_HEIGHT && mapHeight > INVALID_HEIGHT && z2 < mapHeight)
-                vmapHeight = vmgr->getHeight(GetMapId(), x, y, mapHeight + 2.0f, DEFAULT_HEIGHT_SEARCH);
-        }
-    }
-
-    // mapHeight set for any above raw ground Z or <= INVALID_HEIGHT
-    // vmapheight set for any under Z value or <= INVALID_HEIGHT
-    if (vmapHeight > INVALID_HEIGHT)
-    {
-        if (mapHeight > INVALID_HEIGHT)
-        {
-            // we have mapheight and vmapheight and must select more appropriate
-
-            // we are already under the surface or vmap height above map heigt
-            if (z < mapHeight || vmapHeight > mapHeight)
                 return vmapHeight;
+            }
             else
-                return mapHeight;                           // better use .map surface height
+            {
+                // mmap is disabled or not found a polygone near the search zone
+                // we'll try old way
+                // problem with only vmap data, its hard/impossible to be sure we are in correct floor
+
+                // if mapHeight has been found search vmap height at least until mapHeight point
+                // this prevent case when original Z "too high above ground and vmap height search fail"
+                // this will not affect most normal cases (no map in instance, or stay at ground at continent)
+                float z2 = z + 2.f;
+                if (mapHeight > INVALID_HEIGHT && z2 - mapHeight > maxSearchDist)
+                    maxSearchDist = z2 - mapHeight + 1.0f;      // 1.0 make sure that we not fail for case when map height near but above for vamp height
+
+                // look from a bit higher pos to find the floor
+                vmapHeight = vmgr->getHeight(GetMapId(), x, y, z2, maxSearchDist);
+
+                // if not found in expected range, look for infinity range (case of far above floor, but below terrain-height)
+                if (vmapHeight <= INVALID_HEIGHT)
+                {
+                    vmapHeight = vmgr->getHeight(GetMapId(), x, y, z2, 10000.0f);
+
+                    // still not found, look near terrain height
+                    if (vmapHeight <= INVALID_HEIGHT && mapHeight > INVALID_HEIGHT && z2 < mapHeight)
+                        vmapHeight = vmgr->getHeight(GetMapId(), x, y, mapHeight + 2.0f, DEFAULT_HEIGHT_SEARCH);
+                }
+
+                // mapHeight set for any above raw ground Z or <= INVALID_HEIGHT
+                // vmapheight set for any under Z value or <= INVALID_HEIGHT
+                if (vmapHeight > INVALID_HEIGHT)
+                {
+                    if (mapHeight > INVALID_HEIGHT)
+                    {
+                        // we have mapheight and vmapheight and must select more appropriate
+
+                        // we are already under the surface or vmap height above map heigt
+                        if (z < mapHeight || vmapHeight > mapHeight)
+                            return vmapHeight;
+                        else
+                            return mapHeight;                           // better use .map surface height
+                    }
+                    else
+                        return vmapHeight;                              // we have only vmapHeight (if have)
+                }
+            }
         }
-        else
-            return vmapHeight;                              // we have only vmapHeight (if have)
     }
 
     return mapHeight;

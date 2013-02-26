@@ -301,7 +301,7 @@ bool ChatHandler::HandleGPSCommand(char* args)
     }
 
     Map const* map = obj->GetMap();
-    float ground_z = map->GetHeight(obj->GetPhaseMask(), obj->GetPositionX(), obj->GetPositionY(), MAX_HEIGHT);
+    //float ground_z = map->GetHeight(obj->GetPhaseMask(), obj->GetPositionX(), obj->GetPositionY(), MAX_HEIGHT);
     float floor_z = map->GetHeight(obj->GetPhaseMask(), obj->GetPositionX(), obj->GetPositionY(), obj->GetPositionZ());
 
     GridPair p = MaNGOS::ComputeGridPair(obj->GetPositionX(), obj->GetPositionY());
@@ -313,6 +313,7 @@ bool ChatHandler::HandleGPSCommand(char* args)
     uint32 have_vmap = GridMap::ExistVMap(obj->GetMapId(), gx, gy) ? 1 : 0;
 
     TerrainInfo const* terrain = obj->GetTerrain();
+    float ground_z = terrain->GetHeightStatic(obj->GetPositionX(), obj->GetPositionY(), obj->GetPositionZ(), false);
 
     if (have_vmap)
     {
