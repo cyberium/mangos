@@ -2091,9 +2091,7 @@ bool Map::GetRandomPointOnGround(uint32 phaseMask, float& x, float& y, float& z,
         const dtNavMeshQuery* navMeshQuery = mmap->GetNavMeshQuery(i_id, i_InstanceId);
         if (navMeshQuery)
         {
-            // mmap provided a valid usable point
-            // by the way z can be a little bit under map due to
-            // approximative data in mmap
+            
 
             float startPos[3] = {i_y, i_z, i_x};
             float closestPoint[3] = {0.0f, 0.0f, 0.0f};
@@ -2115,19 +2113,22 @@ bool Map::GetRandomPointOnGround(uint32 phaseMask, float& x, float& y, float& z,
                     i_y = closestPoint[0];
                     i_z = closestPoint[1] + 0.5f;
 
+                    // use vmap data to detect collision (automaticaly handle dynamic object)
                     GetHitPosition(x, y, z + 0.5f, i_x, i_y, i_z, phaseMask, -0.5f);
-
-                    z = GetHeight(phaseMask, i_x, i_y, i_z);
+                    // mmap provided a valid usable point
+                    // but z can be a little bit under map due to
+                    // approximative data in mmap
+                    z = GetHeight(phaseMask, i_x, i_y, i_z);    // correct z position with map/vmap data
+                                                                // as point is valid it may not fail
                     x = i_x;
                     y = i_y;
                     return true;
                 }
-
-                return true;
             }
         }
     }
 
+    // for any raison mmap didnt found a correct point
     float ground_z = GetHeight(phaseMask, i_x, i_y, z);
     if (ground_z > INVALID_HEIGHT) // GetHeight can fail
         i_z = ground_z;
@@ -2153,7 +2154,7 @@ bool Map::GetRandomPointOnGround(uint32 phaseMask, float& x, float& y, float& z,
     {
         // compute c angle and convert it from radian to degree
         slope = atan(ac / ab) * 180 / M_PI_F;
-        if  (slope < 50.0f) // 50 max seem best value for walkable slope
+        if (slope < 50.0f)  // 50 max seem best value for walkable slope
         {
             x = i_x;
             y = i_y;

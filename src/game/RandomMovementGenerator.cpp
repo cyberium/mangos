@@ -54,7 +54,7 @@ void RandomMovementGenerator<Creature>::_setRandomLocation(Creature& creature)
         init.MoveTo(destX, destY, destZ, true);
         init.SetWalk(true);
         init.Launch();
-        i_nextMoveTime.Reset(urand(500, 10000));
+        i_nextMoveTime.Reset(urand(1000, 10000));
     }
     else
         i_nextMoveTime.Reset(0); // Retry in next update
