@@ -16,43 +16,66 @@
 // 3. This notice may not be removed or altered from any source distribution.
 //
 
-#ifndef RECASTSAMPLEDEBUG_H
-#define RECASTSAMPLEDEBUG_H
+#ifndef RECASTSAMPLESOLOMESH_H
+#define RECASTSAMPLESOLOMESH_H
 
 #include "Sample.h"
 #include "DetourNavMesh.h"
 #include "Recast.h"
 
-/// Sample used for random debugging.
-class Sample_Debug : public Sample
+class Sample_SoloMesh : public Sample
 {
 protected:
+	bool m_keepInterResults;
+	float m_totalBuildTimeMs;
+
+	unsigned char* m_triareas;
+	rcHeightfield* m_solid;
 	rcCompactHeightfield* m_chf;
 	rcContourSet* m_cset;
 	rcPolyMesh* m_pmesh;
-
-	float m_ext[3];
-	float m_center[3];
-	float m_bmin[3], m_bmax[3];
-	dtPolyRef m_ref;
+	rcConfig m_cfg;	
+	rcPolyMeshDetail* m_dmesh;
 	
+	enum DrawMode
+	{
+		DRAWMODE_NAVMESH,
+		DRAWMODE_NAVMESH_TRANS,
+		DRAWMODE_NAVMESH_BVTREE,
+		DRAWMODE_NAVMESH_NODES,
+		DRAWMODE_NAVMESH_INVIS,
+		DRAWMODE_MESH,
+		DRAWMODE_VOXELS,
+		DRAWMODE_VOXELS_WALKABLE,
+		DRAWMODE_COMPACT,
+		DRAWMODE_COMPACT_DISTANCE,
+		DRAWMODE_COMPACT_REGIONS,
+		DRAWMODE_REGION_CONNECTIONS,
+		DRAWMODE_RAW_CONTOURS,
+		DRAWMODE_BOTH_CONTOURS,
+		DRAWMODE_CONTOURS,
+		DRAWMODE_POLYMESH,
+		DRAWMODE_POLYMESH_DETAIL,
+		MAX_DRAWMODE
+	};
+	
+	DrawMode m_drawMode;
+	
+	void cleanup();
+		
 public:
-	Sample_Debug();
-	virtual ~Sample_Debug();
+	Sample_SoloMesh();
+	virtual ~Sample_SoloMesh();
 	
 	virtual void handleSettings();
 	virtual void handleTools();
 	virtual void handleDebugMode();
-	virtual void handleClick(const float* s, const float* p, bool shift);
-	virtual void handleToggle();
+	
 	virtual void handleRender();
 	virtual void handleRenderOverlay(double* proj, double* model, int* view);
 	virtual void handleMeshChanged(class InputGeom* geom);
 	virtual bool handleBuild();
-
-	virtual const float* getBoundsMin();
-	virtual const float* getBoundsMax();
 };
 
 
-#endif // RECASTSAMPLE_H
+#endif // RECASTSAMPLESOLOMESHSIMPLE_H

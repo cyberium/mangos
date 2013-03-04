@@ -16,43 +16,73 @@
 // 3. This notice may not be removed or altered from any source distribution.
 //
 
-#ifndef RECASTSAMPLEDEBUG_H
-#define RECASTSAMPLEDEBUG_H
+#ifndef RECASTSAMPLETEMPOBSTACLE_H
+#define RECASTSAMPLETEMPOBSTACLE_H
 
 #include "Sample.h"
 #include "DetourNavMesh.h"
 #include "Recast.h"
+#include "ChunkyTriMesh.h"
 
-/// Sample used for random debugging.
-class Sample_Debug : public Sample
+
+class Sample_TempObstacles : public Sample
 {
 protected:
-	rcCompactHeightfield* m_chf;
-	rcContourSet* m_cset;
-	rcPolyMesh* m_pmesh;
+	bool m_keepInterResults;
 
-	float m_ext[3];
-	float m_center[3];
-	float m_bmin[3], m_bmax[3];
-	dtPolyRef m_ref;
+	struct LinearAllocator* m_talloc;
+	struct FastLZCompressor* m_tcomp;
+	struct MeshProcess* m_tmproc;
+
+	class dtTileCache* m_tileCache;
+	
+	float m_cacheBuildTimeMs;
+	int m_cacheCompressedSize;
+	int m_cacheRawSize;
+	int m_cacheLayerCount;
+	int m_cacheBuildMemUsage;
+	
+	enum DrawMode
+	{
+		DRAWMODE_NAVMESH,
+		DRAWMODE_NAVMESH_TRANS,
+		DRAWMODE_NAVMESH_BVTREE,
+		DRAWMODE_NAVMESH_NODES,
+		DRAWMODE_NAVMESH_PORTALS,
+		DRAWMODE_NAVMESH_INVIS,
+		DRAWMODE_MESH,
+		DRAWMODE_CACHE_BOUNDS,
+		MAX_DRAWMODE
+	};
+	
+	DrawMode m_drawMode;
+	
+	int m_maxTiles;
+	int m_maxPolysPerTile;
+	float m_tileSize;
 	
 public:
-	Sample_Debug();
-	virtual ~Sample_Debug();
+	Sample_TempObstacles();
+	virtual ~Sample_TempObstacles();
 	
 	virtual void handleSettings();
 	virtual void handleTools();
 	virtual void handleDebugMode();
-	virtual void handleClick(const float* s, const float* p, bool shift);
-	virtual void handleToggle();
 	virtual void handleRender();
 	virtual void handleRenderOverlay(double* proj, double* model, int* view);
 	virtual void handleMeshChanged(class InputGeom* geom);
 	virtual bool handleBuild();
+	virtual void handleUpdate(const float dt);
 
-	virtual const float* getBoundsMin();
-	virtual const float* getBoundsMax();
+	void getTilePos(const float* pos, int& tx, int& ty);
+	
+	void renderCachedTile(const int tx, const int ty, const int type);
+	void renderCachedTileOverlay(const int tx, const int ty, double* proj, double* model, int* view);
+
+	void addTempObstacle(const float* pos);
+	void removeTempObstacle(const float* sp, const float* sq);
+	void clearAllTempObstacles();
 };
 
 
-#endif // RECASTSAMPLE_H
+#endif // RECASTSAMPLETEMPOBSTACLE_H
