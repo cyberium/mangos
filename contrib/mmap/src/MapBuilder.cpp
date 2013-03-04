@@ -592,14 +592,6 @@ namespace MMAP
 
         delete [] tiles;
 
-        // remove padding for extraction
-        for (int i = 0; i < iv.polyMesh->nverts; ++i)
-        {
-            unsigned short* v = &iv.polyMesh->verts[i * 3];
-            v[0] -= (unsigned short)config.borderSize;
-            v[2] -= (unsigned short)config.borderSize;
-        }
-
         // set polygons as walkable
         // TODO: special flags for DYNAMIC polygons, ie surfaces that can be turned on and off
         for (int i = 0; i < iv.polyMesh->npolys; ++i)
@@ -638,7 +630,11 @@ namespace MMAP
         rcVcopy(params.bmax, bmax);
         params.cs = config.cs;
         params.ch = config.ch;
-        params.tileSize = VERTEX_PER_MAP;
+
+        // no use of layer
+        params.tileLayer = 0;
+        // not sure we still need buildBvTree
+        params.buildBvTree = true;
 
         // will hold final navmesh
         unsigned char* navData = NULL;
@@ -732,14 +728,6 @@ namespace MMAP
 
         if (m_debugOutput)
         {
-            // restore padding so that the debug visualization is correct
-            for (int i = 0; i < iv.polyMesh->nverts; ++i)
-            {
-                unsigned short* v = &iv.polyMesh->verts[i * 3];
-                v[0] += (unsigned short)config.borderSize;
-                v[2] += (unsigned short)config.borderSize;
-            }
-
             iv.generateObjFile(mapID, tileX, tileY, meshData);
             iv.writeIV(mapID, tileX, tileY);
         }
