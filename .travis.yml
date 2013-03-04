@@ -1,7 +1,7 @@
 language: cpp
 
 branches:
-  only:
+  except:
     - master
 
 compiler:
@@ -14,10 +14,3 @@ script:
   - cd _build
   - cmake -DPREFIX=../_install ..
   - make -j4
-
-notifications:
-  irc:
-    channels:
-      - "irc.rizon.net#cmangos"
-    on_success: never
-    on_failure: always
